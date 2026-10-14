@@ -18,9 +18,7 @@
 
 <br>
 
-<!-- TODO: capturar a tela principal e salvar em docs/assets/hero.png (sem dados reais de aparelho ou localização).
-<img src="docs/assets/hero.png" alt="Meu Clima — janela principal e ícone na bandeja" width="820">
--->
+<img src="docs/assets/hero.png" alt="Meu Clima: central de regras e painel da bandeja" width="820">
 
 </div>
 
