@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/adrianocaldeira/meu-clima/discussions
+    about: Dúvidas, ideias amplas, conversas abertas — comece por aqui.
+  - name: 🔒 Vulnerabilidade de segurança
+    url: https://github.com/adrianocaldeira/meu-clima/security/advisories/new
+    about: Reporte privado. NÃO abra issue pública pra segurança.
+  - name: ❄️ Problema no aparelho ou no app Electrolux
+    url: https://developer.electrolux.one/
+    about: O Meu Clima não é afiliado à Electrolux. Falhas da API, do app Electrolux ou do aparelho são com a Electrolux.

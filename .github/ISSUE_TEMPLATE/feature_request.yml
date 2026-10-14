@@ -1,0 +1,36 @@
+name: ✨ Feature request
+description: Sugira uma nova funcionalidade ou melhoria.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Para ideias amplas ou ainda em construção, prefira uma [discussion](https://github.com/adrianocaldeira/meu-clima/discussions). Para algo mais concreto, siga em frente!
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qual problema isso resolve?
+      description: Conta o cenário real onde sente falta. Evite "seria legal ter X" — explique a dor.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposta
+      description: O que você gostaria que existisse. Pode ser um esboço, mockup, ou descrição.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+      description: O que você já tentou ou outros formatos que poderiam resolver.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Contexto adicional
+      description: Screenshots, links, exemplos de outras ferramentas.

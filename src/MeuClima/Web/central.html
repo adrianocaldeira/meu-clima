@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meu Clima · Central</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@300;500;600&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="app.css">
+<style>
+  html,body{height:100%}
+  .shell{display:grid;grid-template-columns:212px minmax(0,1fr);height:100%}
+  .side{background:var(--panel-2);border-right:1px solid var(--line);padding:16px 10px;display:flex;flex-direction:column;gap:3px;overflow:auto}
+  .side .brand{font:600 1.02rem var(--display);padding:2px 10px 14px;display:flex;align-items:center;gap:8px}
+  .side .brand svg{width:20px;height:20px;color:var(--cool)}
+  .side button{border:0;background:transparent;text-align:left;padding:8px 10px;border-radius:8px;color:var(--ink-2);font:500 .88rem var(--body);display:flex;gap:9px;align-items:center}
+  .side button:hover{color:var(--ink);background:color-mix(in srgb,var(--panel) 55%,transparent)}
+  .side button svg{width:17px;height:17px;flex:none}
+  .side button[aria-current="page"]{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+  .side .pend-dot{width:7px;height:7px;border-radius:50%;background:var(--warn);margin-left:auto}
+  .side .ft{margin-top:auto;padding:10px;display:grid;gap:4px}
+  .main{padding:22px 26px 40px;overflow:auto;display:grid;gap:16px;align-content:start;min-width:0}
+  .main h2{font:600 1.2rem var(--display);margin:0}
+  .main h3.sec{font:500 .7rem var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin:6px 0 -6px}
+  .hrow{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px;align-items:start}
+  .picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+  .picker button{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:12px 14px;text-align:left;display:grid;gap:3px}
+  .picker button:hover{border-color:var(--cool)}
+  .picker b{font:600 .92rem var(--display)}
+  .picker span{font-size:.8rem;color:var(--ink-2)}
+  .editor{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+  .editor .aside{position:sticky;top:0;display:grid;gap:12px}
+  .editor .forms{display:grid;gap:12px}
+  .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .actions .grow{flex:1}
+  .stack{display:grid;gap:12px;max-width:720px}
+  .steps-ol{margin:0;padding-left:1.2rem;display:grid;gap:4px;font-size:.84rem;color:var(--ink-2)}
+  .steps-ol b{color:var(--ink)}
+  .field{display:grid;gap:4px}
+  .field label{font:500 .82rem var(--body)}
+  .cities{display:grid;gap:4px}
+  .cities button{border:1px solid var(--line);background:var(--panel-2);border-radius:8px;padding:7px 10px;text-align:left;font-size:.86rem;display:flex;justify-content:space-between;gap:10px}
+  .cities button:hover{border-color:var(--cool)}
+  .choice{display:grid;gap:6px}
+  .choice button{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:8px 12px;text-align:left;display:flex;align-items:center;gap:10px;font-size:.88rem}
+  .choice button::before{content:"";width:14px;height:14px;border-radius:50%;border:2px solid var(--ink-3);flex:none}
+  .choice button[aria-checked="true"]{border-color:var(--cool)}
+  .choice button[aria-checked="true"]::before{border-color:var(--cool);background:radial-gradient(var(--cool) 0 3px,transparent 4px)}
+  .chartcard{display:grid;gap:8px}
+  @media (max-width:820px){.editor{grid-template-columns:1fr}.editor .aside{position:static}}
+  @media (max-width:640px){.shell{grid-template-columns:1fr;height:auto}.side{flex-direction:row;flex-wrap:wrap}.side .ft{display:none}.kpis{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="side" id="side" aria-label="Seções da central"></nav>
+  <main class="main" id="main" aria-live="off"><p class="muted">Carregando…</p></main>
+</div>
+<script src="bridge.js"></script>
+<script src="central.js"></script>
+</body>
+</html>

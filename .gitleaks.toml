@@ -1,0 +1,40 @@
+# Gitleaks configuration — Meu Clima
+# Estende as regras padrão e adiciona allowlist específica do projeto.
+# Docs: https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
+#
+# Atenção: este app lida com API key e refresh token da Electrolux Group API.
+# Não adicione allowlist para arquivos de credencial (*.cred.json, appsettings.local.json);
+# eles ficam fora do repo via .gitignore e o gitleaks deve continuar barrando se escaparem.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "electrolux-refresh-token-json"
+description = "Refresh token ou API key da Electrolux em JSON/config"
+regex = '''(?i)["']?(refresh_?token|api_?key|x-api-key)["']?\s*[:=]\s*["'][A-Za-z0-9\-_\.]{20,}["']'''
+keywords = ["refreshtoken", "refresh_token", "apikey", "api_key", "x-api-key"]
+
+[allowlist]
+description = "Allowlist global do Meu Clima"
+
+paths = [
+  '''\.gitleaks\.toml$''',
+  '''(?i)\.git/''',
+  '''(?i)bin/''',
+  '''(?i)obj/''',
+  '''(?i)publish/''',
+  '''(?i)installer/dist/''',
+  '''(?i)webview2userdata/''',
+  '''\.lock$''',
+  '''\.png$''',
+  '''\.ico$''',
+  '''\.jpg$''',
+  '''\.svg$''',
+]
+
+regexes = [
+  # Namespaces XAML do WPF (não são URLs reais)
+  '''http://schemas\.microsoft\.com/winfx/2006/xaml[^"\s]*''',
+  '''http://schemas\.openxmlformats\.org/markup-compatibility/2006''',
+]

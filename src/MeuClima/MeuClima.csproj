@@ -1,0 +1,42 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <!-- NotifyIcon (bandeja) vem do WinForms. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Resources\app-icon.ico</ApplicationIcon>
+    <AssemblyName>MeuClima</AssemblyName>
+    <RootNamespace>MeuClima</RootNamespace>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <!-- Version herdada de Directory.Build.props (fonte única) -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WPF + WinForms juntos: evita ambiguidade de tipos comuns. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3800.47" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MeuClima.Core\MeuClima.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Telas embutidas no .exe único; extraídas para %LOCALAPPDATA% na inicialização (WebView2 precisa de pasta). -->
+    <EmbeddedResource Include="Web\**" LogicalName="web/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Resource Include="Resources\app-icon.ico" />
+    <EmbeddedResource Include="Resources\app-icon.ico" LogicalName="MeuClima.app-icon.ico" />
+  </ItemGroup>
+
+</Project>

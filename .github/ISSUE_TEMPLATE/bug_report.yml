@@ -1,0 +1,77 @@
+name: 🐛 Bug report
+description: Reporte um bug ou comportamento inesperado.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por reportar! Quanto mais detalhes, mais rápido a gente corrige.
+
+        **Não cole API key, tokens, número de série, ID do aparelho nem sua localização.** Se precisar mostrar um log, apague esses valores antes.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: O que aconteceu?
+      description: Descreva o bug em uma frase. O que você esperava vs. o que aconteceu.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Como reproduzir
+      description: Passos numerados que produzem o bug.
+      placeholder: |
+        1. Ativar a regra "Saí do PC" com 10 minutos
+        2. Bloquear o Windows (Win+L)
+        3. Esperar 10 minutos
+        4. Observar que o ar-condicionado...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamento esperado
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Versão do Meu Clima
+      placeholder: "0.1.0 — veja em Sobre, no menu do ícone da bandeja"
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Modelo do ar-condicionado (opcional)
+      description: Só o modelo comercial. Não informe número de série nem ID do aparelho.
+      placeholder: "ex.: Electrolux Split Inverter 12.000 BTUs"
+
+  - type: dropdown
+    id: windows
+    attributes:
+      label: Versão do Windows
+      options:
+        - Windows 11
+        - Windows 10 (1809+)
+        - Outra
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots ou GIF (se aplicável)
+      description: Arraste imagens/vídeos pra cá.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs ou stack trace
+      description: 'Se houve crash ou falha de atualização, cole o trecho relevante dos arquivos em `%LocalAppData%\MeuClima\` (por exemplo `update.log`). Remova tokens e identificadores antes.'
+      render: text

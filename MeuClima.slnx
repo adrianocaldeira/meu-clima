@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MeuClima.Core/MeuClima.Core.csproj" />
+    <Project Path="src/MeuClima/MeuClima.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MeuClima.Core.Tests/MeuClima.Core.Tests.csproj" />
+  </Folder>
+</Solution>

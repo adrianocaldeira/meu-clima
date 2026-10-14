@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meu Clima</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@300;500;600&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="app.css">
+<style>
+  .fly{width:100%;max-height:640px;display:flex;flex-direction:column;background:var(--panel);overflow:hidden}
+  .demo body{background:var(--desk);padding:24px}
+  .demo .fly{width:380px;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+  .whead{display:flex;justify-content:space-between;align-items:center;padding:11px 14px 11px 16px;border-bottom:1px solid var(--line);gap:10px;flex:none}
+  .whead .ttl{display:grid;gap:0}
+  .whead b{font:600 .98rem var(--display)}
+  .whead .mono{font-size:.68rem;color:var(--ink-3)}
+  .view{scrollbar-width:thin;overflow-anchor:none;padding:14px 16px;display:flex;flex-direction:column;gap:12px;overflow:auto;flex:1 1 auto;min-height:0}
+  .view>*{flex-shrink:0}
+  .foot{display:flex;justify-content:space-between;align-items:center;padding:7px 16px;border-top:1px solid var(--line);flex:none;background:var(--panel-2)}
+  .foot .link{color:var(--ink-3);font-size:.74rem}
+  .setup{border:1px solid var(--cool);background:var(--cool-soft);border-radius:12px;padding:14px;display:grid;gap:8px;justify-items:start}
+  .setup b{font:600 .95rem var(--display)}
+  .setup ul{margin:0;padding-left:1.1rem;font-size:.82rem;color:var(--ink-2)}
+  .night{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:.8rem;color:var(--ink-2)}
+  .night b{display:block;color:var(--ink);font:600 .82rem var(--display)}
+</style>
+</head>
+<body>
+<div class="fly" id="app" aria-busy="true">
+  <div class="whead">
+    <div class="ttl"><b>Meu Clima</b><span class="mono tnum" id="upd">carregando…</span></div>
+    <button class="btn" data-act="central" data-k="central">Abrir central</button>
+  </div>
+  <div class="view" id="view" data-scroll="view"></div>
+  <div class="foot">
+    <span class="mono small muted" id="foot-info"></span>
+    <button class="link" data-act="quit" data-k="quit">Sair do Meu Clima</button>
+  </div>
+</div>
+<script src="bridge.js"></script>
+<script src="flyout.js"></script>
+</body>
+</html>

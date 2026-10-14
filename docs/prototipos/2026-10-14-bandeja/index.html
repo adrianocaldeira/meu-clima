@@ -1,0 +1,338 @@
+<title>Clima na Bandeja</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@300;500;600&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: comparação de 2 direções do app de bandeja; cada uma é uma janela simulada sobre um "desktop", com notas ao lado/abaixo. */
+:root{
+  --desk:#dde3e7; --panel:#f8fafb; --panel-2:#eef2f4; --line:#d3dade;
+  --ink:#15202a; --ink-2:#56636e; --ink-3:#86919a;
+  --cool:#1f7fc4; --cool-soft:#dcebf6; --heat:#d0652a; --heat-soft:#f7e3d6;
+  --ok:#3f8a62; --ok-soft:#dcefe4; --warn:#b07418; --warn-soft:#f6ead3;
+  --off:#9aa4ab;
+  --display:"Sora",ui-sans-serif,system-ui,sans-serif;
+  --body:"Figtree",ui-sans-serif,system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  --shadow:0 20px 44px -14px rgba(20,32,44,.30),0 2px 6px rgba(20,32,44,.08);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;--desk:#0f1418;--panel:#1b2228;--panel-2:#242d35;--line:#323d47;
+  --ink:#e7edf1;--ink-2:#a1aeb8;--ink-3:#6f7e89;--cool:#5aaee8;--cool-soft:#1b3346;
+  --heat:#f08a4b;--heat-soft:#3f281b;--ok:#6fbf92;--ok-soft:#1d3428;--warn:#e2a94b;--warn-soft:#3a2d17;--off:#66727b;
+  --shadow:0 20px 44px -14px rgba(0,0,0,.65),0 2px 6px rgba(0,0,0,.3);}}
+:root[data-theme="dark"]{
+  color-scheme:dark;--desk:#0f1418;--panel:#1b2228;--panel-2:#242d35;--line:#323d47;
+  --ink:#e7edf1;--ink-2:#a1aeb8;--ink-3:#6f7e89;--cool:#5aaee8;--cool-soft:#1b3346;
+  --heat:#f08a4b;--heat-soft:#3f281b;--ok:#6fbf92;--ok-soft:#1d3428;--warn:#e2a94b;--warn-soft:#3a2d17;--off:#66727b;
+  --shadow:0 20px 44px -14px rgba(0,0,0,.65),0 2px 6px rgba(0,0,0,.3);}
+
+*{box-sizing:border-box}
+body{background:var(--desk);color:var(--ink);font:15px/1.5 var(--body);margin:0;
+  padding-block:28px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:22px}
+h1{font:600 1.6rem/1.2 var(--display);margin:0;text-wrap:balance}
+.lead{margin:.35rem 0 0;color:var(--ink-2);max-width:72ch}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tabs button{font:500 .9rem var(--body);color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;padding:.45rem 1rem;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+button{font-family:inherit}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--cool);outline-offset:2px}
+.tnum{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono)}
+.lbl{font:500 .66rem var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+.muted{color:var(--ink-2)}
+.stage{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:32px;align-items:start}
+@media (max-width:900px){.stage{grid-template-columns:1fr}}
+.notes{display:grid;gap:14px;max-width:62ch}
+.notes h2{font:600 1.15rem var(--display);margin:0}
+.notes ul{margin:0;padding-left:1.1rem;color:var(--ink-2);display:grid;gap:.35rem}
+.notes h3{font:600 .95rem var(--display);margin:0}
+
+/* janela */
+.win{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.fly{width:380px;max-width:100%}
+.whead{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);gap:10px}
+.whead b{font:600 .95rem var(--display)}
+.whead .mono{font-size:.7rem;color:var(--ink-3)}
+.nav{display:flex;border-top:1px solid var(--line);background:var(--panel-2)}
+.nav button{flex:1;border:0;background:transparent;padding:9px 4px 10px;color:var(--ink-3);font:500 .74rem var(--body);cursor:pointer;display:grid;justify-items:center;gap:2px;border-top:2px solid transparent}
+.nav button svg{width:18px;height:18px}
+.nav button[aria-selected="true"]{color:var(--ink);border-top-color:var(--cool)}
+.view{padding:14px 16px;display:grid;gap:14px;max-height:600px;overflow:auto}
+
+/* componentes */
+.ib{background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:8px;cursor:pointer;font:500 .95rem var(--body);width:30px;height:30px;display:grid;place-items:center;padding:0}
+.ib:hover{border-color:var(--ink-3)}
+.pwr{width:38px;height:22px;border-radius:999px;background:var(--off);border:0;position:relative;cursor:pointer;flex:none;padding:0}
+.pwr::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}
+.pwr[aria-pressed="true"]{background:var(--cool)}
+.pwr[aria-pressed="true"]::after{left:19px}
+.pwr:disabled{opacity:.4;cursor:not-allowed}
+.chip{font:500 .64rem var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2);white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+.chip.cool{color:var(--cool);border-color:var(--cool);background:var(--cool-soft)}
+.chip.ok{color:var(--ok);border-color:var(--ok);background:var(--ok-soft)}
+.chip.warn{color:var(--warn);border-color:var(--warn);background:var(--warn-soft)}
+.chip.pend{border-style:dashed}
+.seg{display:flex;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:2px;gap:2px}
+.seg button{flex:1;border:0;background:transparent;color:var(--ink-2);font:500 .76rem var(--body);padding:5px 4px;border-radius:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.14)}
+
+/* faixa clima */
+.wx{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.wx div{background:var(--panel);padding:8px 10px;display:grid;gap:1px}
+.wx .v{font:500 1.15rem var(--display)}
+.wx .s{font:400 .7rem var(--mono);color:var(--ink-3)}
+
+/* aparelho */
+.dev{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.dev:last-child{border-bottom:0}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--off)}
+.dot.on{background:var(--cool)} .dot.warn{background:var(--warn)}
+.dev .n{font:600 .93rem var(--display);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.dev .m{font:400 .72rem var(--mono);color:var(--ink-2)}
+.dev .t{display:flex;align-items:center;gap:5px}
+.dev .t .v{font:500 1.2rem var(--display);min-width:2.4ch;text-align:center}
+.dev .more{grid-column:1/-1;display:grid;gap:7px}
+.dim{opacity:.45;pointer-events:none}
+
+/* banner regra ativa */
+.live{border:1px solid var(--cool);background:var(--cool-soft);border-radius:10px;padding:10px 12px;display:grid;gap:6px}
+.live .top{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.live b{font:600 .85rem var(--display)}
+.bar{height:6px;border-radius:99px;background:var(--panel);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--cool);border-radius:99px}
+
+/* regra */
+.rule{border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:10px;background:var(--panel)}
+.rule .hd{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.rule .hd b{font:600 .92rem var(--display)}
+.rule .src{font:400 .7rem var(--mono);color:var(--ink-3)}
+.steps{display:grid;gap:6px}
+.step{display:grid;grid-template-columns:62px 1fr;gap:8px;font-size:.84rem;align-items:baseline}
+.step .k{font:500 .64rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.pill{display:inline-block;font:500 .8rem var(--body);background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin:1px 0}
+.pill.c{color:var(--cool);border-color:var(--cool)}
+svg.curve{width:100%;height:auto;display:block}
+.add{border:1px dashed var(--line);border-radius:10px;padding:10px;background:transparent;color:var(--ink-2);cursor:pointer;font:500 .85rem var(--body);width:100%}
+.sugg{display:grid;gap:8px}
+.sg{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.sg b{font:600 .85rem var(--display);display:block}
+.sg span{font-size:.8rem;color:var(--ink-2)}
+.sg button{border:1px solid var(--ink);background:var(--ink);color:var(--panel);border-radius:7px;padding:5px 10px;font:500 .76rem var(--body);cursor:pointer;white-space:nowrap}
+
+/* insights */
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kpi{border:1px solid var(--line);border-radius:10px;padding:9px 10px;display:grid;gap:2px}
+.kpi .v{font:500 1.25rem var(--display)}
+.kpi .s{font:400 .68rem var(--mono);color:var(--ink-3)}
+.ins{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:10px 0;border-bottom:1px solid var(--line)}
+.ins:last-child{border-bottom:0}
+.ins .ic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font:600 .8rem var(--mono)}
+.ins .ic.w{background:var(--warn-soft);color:var(--warn)} .ins .ic.o{background:var(--ok-soft);color:var(--ok)} .ins .ic.c{background:var(--cool-soft);color:var(--cool)}
+.ins b{font:600 .86rem var(--display);display:block}
+.ins span{font-size:.8rem;color:var(--ink-2)}
+.legend{display:flex;gap:12px;font:400 .7rem var(--mono);color:var(--ink-2);flex-wrap:wrap}
+.legend i{display:inline-block;width:12px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.ex{font:500 .62rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--warn);border:1px solid var(--warn);border-radius:4px;padding:0 5px}
+
+/* ajustes */
+.set{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.set:last-child{border-bottom:0}
+.set b{font:500 .88rem var(--body);display:block}
+.set span{font-size:.76rem;color:var(--ink-2)}
+.set select,.set input{font:400 .82rem var(--body);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:7px;padding:5px 8px}
+
+/* direção B: janela ampla */
+.big{width:min(860px,100%);display:grid;grid-template-columns:200px minmax(0,1fr)}
+@media (max-width:700px){.big{grid-template-columns:1fr}}
+.side{background:var(--panel-2);border-right:1px solid var(--line);padding:14px 10px;display:grid;align-content:start;gap:4px}
+.side .brand{font:600 .95rem var(--display);padding:4px 8px 12px}
+.side button{border:0;background:transparent;text-align:left;padding:8px 10px;border-radius:8px;color:var(--ink-2);font:500 .86rem var(--body);cursor:pointer;display:flex;gap:8px;align-items:center}
+.side button svg{width:16px;height:16px}
+.side button[aria-selected="true"]{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.main{padding:18px 22px;display:grid;gap:16px;align-content:start;min-width:0}
+.main h2{font:600 1.1rem var(--display);margin:0}
+.cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:700px){.cols{grid-template-columns:1fr}}
+.bstack{display:grid;gap:14px;justify-items:start}
+.open{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:8px;padding:6px 10px;font:500 .78rem var(--body);cursor:pointer}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Clima na bandeja: protótipo v2</h1>
+    <p class="lead">Duas formas de organizar o mesmo app. Ele inicia junto com o Windows, mostra a temperatura de fora e de dentro, roda as suas regras e avisa quando algo foge do normal. Os dois aparelhos e os comandos são reais; o clima de fora e o histórico estão marcados como <span class="ex">exemplo</span>. Os botões só mexem na tela.</p>
+  </header>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-t="a" id="tab-a">A · Tudo na bandeja</button>
+    <button role="tab" aria-selected="false" data-t="b" id="tab-b">B · Bandeja + central</button>
+  </div>
+
+  <section class="stage" data-p="a">
+    <div class="win fly" id="appA"></div>
+    <div class="notes">
+      <h2>A · Tudo na bandeja</h2>
+      <ul>
+        <li>Um só painel, de 380 px, com quatro abas embaixo: Agora, Regras, Insights e Ajustes.</li>
+        <li>Abre e fecha num clique, como o volume ou o Wi-Fi do Windows.</li>
+        <li>A edição de regras fica apertada nessa largura, porque cada regra tem três fases.</li>
+      </ul>
+      <h3>O que muda em relação à v1</h3>
+      <ul>
+        <li>A faixa de clima (fora, dentro, previsão de pico) fica sempre visível no topo.</li>
+        <li>Quando uma regra está rodando, um aviso mostra em que fase ela está e quanto falta.</li>
+        <li>Comando enviado aparece como "aguardando" até o aparelho confirmar (cerca de 30 s).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage" data-p="b" hidden>
+    <div class="bstack">
+      <div class="win fly" id="appB1"></div>
+      <div class="win big" id="appB2"></div>
+    </div>
+    <div class="notes">
+      <h2>B · Bandeja + central</h2>
+      <ul>
+        <li>A bandeja é só o uso do dia a dia: clima, os dois aparelhos e a regra ativa.</li>
+        <li>"Abrir central" abre uma janela grande para criar regras, ver o histórico e mudar ajustes.</li>
+        <li>O editor de regras tem espaço para a curva das três fases, e o gráfico do dia fica legível.</li>
+        <li>São duas telas para construir em vez de uma.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+const IC={
+ now:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v11"/><circle cx="12" cy="17" r="4"/></svg>',
+ rules:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h10M4 17h6"/><circle cx="17" cy="7" r="3"/><circle cx="13" cy="17" r="3"/></svg>',
+ ins:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>',
+ set:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>'
+};
+const wx=`<div class="wx tnum">
+  <div><span class="lbl">Fora <span class="ex">exemplo</span></span><span class="v">31 °C</span><span class="s">sensação 33 · 58%</span></div>
+  <div><span class="lbl">Escritório</span><span class="v">25 °C</span><span class="s">alvo 22 · turbo</span></div>
+  <div><span class="lbl">Pico hoje</span><span class="v">34 °C</span><span class="s">às 15h</span></div></div>`;
+const live=`<div class="live">
+  <div class="top"><b>Esfriar rápido · fase 1 de 2</b><span class="chip cool">ativa</span></div>
+  <div class="bar"><i style="width:40%"></i></div>
+  <div class="mono tnum" style="font-size:.72rem;color:var(--ink-2)">25 → 22 °C · faltam ~12 min · depois 24 °C auto</div></div>`;
+const devs=(full)=>`<div>
+ <div class="dev">
+  <span class="dot on"></span>
+  <div><div class="n">Escritório <span class="chip pend">aguardando</span></div><div class="m tnum">frio · turbo · amb 25 °C</div></div>
+  <div class="t"><button class="ib" data-d="-1" aria-label="Diminuir">−</button><span class="v tnum" data-val>22</span><button class="ib" data-d="1" aria-label="Aumentar">+</button><button class="pwr" aria-pressed="true" aria-label="Ligar ou desligar"></button></div>
+  ${full?`<div class="more">
+   <div class="seg" data-g><button aria-pressed="false">Auto</button><button aria-pressed="true">Frio</button><button aria-pressed="false">Quente</button><button aria-pressed="false">Ventilar</button></div>
+   <div class="seg" data-g><button aria-pressed="false">Auto</button><button aria-pressed="false">Baixa</button><button aria-pressed="false">Média</button><button aria-pressed="false">Alta</button><button aria-pressed="true">Turbo</button></div></div>`:''}
+ </div>
+ <div class="dev">
+  <span class="dot warn"></span>
+  <div><div class="n">Quarto de hóspede <span class="chip warn">sem conexão</span></div><div class="m tnum">desde 14:02 · amb 24 °C</div></div>
+  <div class="t dim"><button class="ib">−</button><span class="v tnum">23</span><button class="ib">+</button><button class="pwr" aria-pressed="false" disabled></button></div>
+ </div></div>`;
+
+function curve(w){ // fase 1: 25→22 turbo; fase 2: sobe a 24 auto. escala: y 21..26 °C
+  const H=120,P=28,x=t=>P+t*(w-P-8)/60,y=c=>10+(26-c)*(H-30)/5;
+  const pts=[[0,25],[5,24.6],[10,23.8],[15,23],[20,22.4],[25,22],[30,22.3],[35,23],[40,23.6],[45,24],[50,24],[55,24.1],[60,24]];
+  const d=pts.map((p,i)=>(i?'L':'M')+x(p[0]).toFixed(1)+' '+y(p[1]).toFixed(1)).join(' ');
+  return `<svg class="curve" viewBox="0 0 ${w} ${H}" role="img" aria-label="Curva prevista: de 25 a 22 graus em 25 minutos no turbo, depois sobe e estabiliza em 24 no automático">
+   <rect x="${x(0)}" y="6" width="${x(25)-x(0)}" height="${H-24}" fill="var(--cool-soft)"/>
+   ${[22,24].map(c=>`<line x1="${P}" x2="${w-8}" y1="${y(c)}" y2="${y(c)}" stroke="var(--line)" stroke-dasharray="3 3"/><text x="${P-5}" y="${y(c)+3}" text-anchor="end" font-size="9" font-family="JetBrains Mono" fill="var(--ink-3)">${c}°</text>`).join('')}
+   <path d="${d}" fill="none" stroke="var(--cool)" stroke-width="2"/>
+   <circle cx="${x(25)}" cy="${y(22)}" r="3.5" fill="var(--cool)"/>
+   <text x="${x(12.5)}" y="${H-6}" text-anchor="middle" font-size="9" font-family="JetBrains Mono" fill="var(--ink-2)">FASE 1 · TURBO</text>
+   <text x="${x(45)}" y="${H-6}" text-anchor="middle" font-size="9" font-family="JetBrains Mono" fill="var(--ink-2)">FASE 2 · AUTO 24°</text>
+  </svg>`;
+}
+const ruleMain=(w)=>`<div class="rule">
+  <div class="hd"><div><b>Esfriar rápido</b><div class="src">Escritório · seg–sex 08:00–19:00</div></div><button class="pwr" aria-pressed="true" aria-label="Ativar regra"></button></div>
+  <div class="steps">
+   <div class="step"><span class="k">Quando</span><span>fora passar de <span class="pill c">24 °C</span> e eu estiver no PC</span></div>
+   <div class="step"><span class="k">Fase 1</span><span><span class="pill">Frio</span> <span class="pill">Turbo</span> alvo <span class="pill c">22 °C</span> até dentro chegar a 22</span></div>
+   <div class="step"><span class="k">Fase 2</span><span><span class="pill">Auto</span> <span class="pill">24 °C</span> ventilação automática</span></div>
+   <div class="step"><span class="k">Para</span><span>fora abaixo de <span class="pill">23 °C</span> por 30 min, ou eu mudar algo à mão</span></div>
+  </div>
+  ${curve(w)}
+ </div>`;
+const rulesSmall=`<div class="rule"><div class="hd"><div><b>Saí do PC</b><div class="src">Escritório · tela bloqueada há 20 min</div></div><button class="pwr" aria-pressed="true" aria-label="Ativar regra"></button></div>
+  <div class="steps"><div class="step"><span class="k">Faz</span><span><span class="pill">Auto</span> <span class="pill">26 °C</span>; desliga após 1 h longe. Volta ao desbloquear.</span></div></div></div>
+ <div class="rule"><div class="hd"><div><b>Antes do pico</b><div class="src">Escritório · usa a previsão do tempo</div></div><button class="pwr" aria-pressed="false" aria-label="Ativar regra"></button></div>
+  <div class="steps"><div class="step"><span class="k">Faz</span><span>se a previsão passar de <span class="pill">32 °C</span>, liga 30 min antes em <span class="pill">Auto 24 °C</span></span></div></div></div>`;
+const sugg=`<div class="sugg"><span class="lbl">Sugestões</span>
+  <div class="sg"><div><b>Janela aberta?</b><span>Desliga se dentro subir 1,5 °C em 10 min com o ar em frio.</span></div><button>Ativar</button></div>
+  <div class="sg"><div><b>Modo noite</b><span>Sobe 1 °C por hora, desliga sozinho em 4 h.</span></div><button>Ativar</button></div>
+  <div class="sg"><div><b>Fora mais fresco</b><span>Avisa quando fora estiver 3 °C abaixo de dentro: abrir a janela sai de graça.</span></div><button>Ativar</button></div></div>`;
+
+function chart(w){ // 24h exemplo: fora e dentro, faixa de ar ligado
+  const H=150,L=26,R=8,T=8,B=20,x=h=>L+h*(w-L-R)/24,y=c=>T+(36-c)*(H-T-B)/(36-18);
+  const fora=[22,21.5,21,20.6,20.3,20.5,21.5,23.5,26,28.5,30.5,32,33,33.8,34,33.6,32.4,30.5,28.4,26.8,25.5,24.4,23.5,22.8,22.2];
+  const dentro=[24,23.8,23.6,23.5,23.4,23.4,23.6,24.2,25,23.4,22.4,22.2,23.6,24,24,24,24.1,24,24,24.1,24.4,24.6,24.5,24.3,24.2];
+  const p=a=>a.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)).join(' ');
+  return `<svg class="curve" viewBox="0 0 ${w} ${H}" role="img" aria-label="Temperatura de fora e do Escritório nas últimas 24 horas, exemplo">
+   <rect x="${x(8.6)}" y="${T}" width="${x(19.2)-x(8.6)}" height="${H-T-B}" fill="var(--cool-soft)"/>
+   ${[20,24,28,32,36].map(c=>`<line x1="${L}" x2="${w-R}" y1="${y(c)}" y2="${y(c)}" stroke="var(--line)"/><text x="${L-4}" y="${y(c)+3}" text-anchor="end" font-size="9" font-family="JetBrains Mono" fill="var(--ink-3)">${c}</text>`).join('')}
+   ${[0,6,12,18,24].map(h=>`<text x="${x(h)}" y="${H-5}" text-anchor="middle" font-size="9" font-family="JetBrains Mono" fill="var(--ink-3)">${String(h%24).padStart(2,'0')}h</text>`).join('')}
+   <path d="${p(fora)}" fill="none" stroke="var(--heat)" stroke-width="2"/>
+   <path d="${p(dentro)}" fill="none" stroke="var(--cool)" stroke-width="2"/>
+   <circle cx="${x(14)}" cy="${y(34)}" r="3.5" fill="var(--heat)"/>
+  </svg>`;
+}
+const legend=`<div class="legend"><span><i style="background:var(--heat)"></i>fora</span><span><i style="background:var(--cool)"></i>Escritório</span><span><i style="background:var(--cool-soft);height:8px"></i>ar ligado</span><span class="ex">exemplo</span></div>`;
+const kpis=`<div class="kpis tnum">
+  <div class="kpi"><span class="lbl">Ligado hoje</span><span class="v">10,6 h</span><span class="s">ontem 9,1 h</span></div>
+  <div class="kpi"><span class="lbl">Energia est.</span><span class="v">5,8 kWh</span><span class="s">≈ R$ 4,90</span></div>
+  <div class="kpi"><span class="lbl">−1 °C leva</span><span class="v">7 min</span><span class="s">média 30 dias 6</span></div></div>`;
+const insights=`<div>
+  <div class="ins"><span class="ic w">!</span><div><b>Quarto de hóspede está sem conexão desde 14:02</b><span>Ficou fora do Wi-Fi 3 vezes esta semana. Verifique o sinal do roteador no quarto.</span></div></div>
+  <div class="ins"><span class="ic c">↘</span><div><b>O Escritório está esfriando 15% mais devagar</b><span>Leva 7 min por grau contra 6 min no mês passado, com o mesmo calor lá fora. Sinal comum de filtro sujo, mesmo com o aparelho dizendo "filtro ok".</span></div></div>
+  <div class="ins"><span class="ic o">✓</span><div><b>"Saí do PC" economizou 2,3 h de ar ligado esta semana</b><span>O ar ficou em 26 °C ou desligado enquanto a tela estava bloqueada.</span></div></div>
+  <div class="ins"><span class="ic c">☀</span><div><b>Amanhã o pico será de 35 °C às 14h</b><span>Ativar "Antes do pico" liga o ar às 13h30 em 24 °C, sem precisar do turbo.</span></div></div></div>`;
+const settings=`<div>
+  <div class="set"><div><b>Iniciar com o Windows</b><span>Abre minimizado na bandeja ao entrar na sua conta</span></div><button class="pwr" aria-pressed="true" aria-label="Iniciar com o Windows"></button></div>
+  <div class="set"><div><b>Local do clima</b><span>Para buscar a temperatura de fora e a previsão</span></div><input id="cidade" value="Sua cidade" aria-label="Cidade"></div>
+  <div class="set"><div><b>Atualizar clima de fora</b><span>A fonte muda de hora em hora no Brasil</span></div><select id="wx" aria-label="Intervalo do clima"><option>15 min</option><option>30 min</option><option>60 min</option></select></div>
+  <div class="set"><div><b>Atualizar aparelhos</b><span>Estado lido da nuvem da Electrolux</span></div><select id="ac" aria-label="Intervalo dos aparelhos"><option>1 min</option><option>2 min</option><option>5 min</option></select></div>
+  <div class="set"><div><b>Avisos do Windows</b><span>Regra começou, aparelho caiu, filtro, fora mais fresco</span></div><button class="pwr" aria-pressed="true" aria-label="Avisos"></button></div>
+  <div class="set"><div><b>Conta Electrolux</b><span class="mono">conectada · token renovado 16:41</span></div><button class="open">Trocar</button></div></div>`;
+
+function flyA(){
+  const views={
+   now:`${wx}${live}${devs(false)}`,
+   rules:`${ruleMain(340)}${rulesSmall}${sugg}<button class="add">+ Nova regra</button>`,
+   ins:`${kpis}${chart(340)}${legend}${insights}`,
+   set:settings};
+  const names={now:'Agora',rules:'Regras',ins:'Insights',set:'Ajustes'};
+  const el=document.getElementById('appA');
+  el.innerHTML=`<div class="whead"><b>Ar-condicionado</b><span class="mono tnum">atualizado 16:41</span></div><div class="view" id="vA"></div>
+   <div class="nav" role="tablist">${Object.keys(views).map((k,i)=>`<button role="tab" aria-selected="${i==0}" data-v="${k}">${IC[k]}${names[k]}</button>`).join('')}</div>`;
+  const show=k=>{el.querySelector('#vA').innerHTML=views[k];el.querySelectorAll('.nav button').forEach(b=>b.setAttribute('aria-selected',b.dataset.v===k));};
+  el.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>show(b.dataset.v)));
+  show('now');
+}
+function appB(){
+  const f=document.getElementById('appB1');
+  f.innerHTML=`<div class="whead"><b>Ar-condicionado</b><button class="open" data-goto="rules">Abrir central</button></div><div class="view">${wx}${live}${devs(true)}</div>`;
+  const views={
+   rules:`<h2>Regras</h2><div class="cols"><div style="display:grid;gap:12px;align-content:start">${ruleMain(380)}</div><div style="display:grid;gap:12px;align-content:start">${rulesSmall}${sugg}<button class="add">+ Nova regra</button></div></div>`,
+   ins:`<h2>Insights</h2>${kpis}<div class="rule">${chart(560)}${legend}</div>${insights}`,
+   set:`<h2>Ajustes</h2>${settings}`};
+  const names={rules:'Regras',ins:'Insights',set:'Ajustes'};
+  const b=document.getElementById('appB2');
+  b.innerHTML=`<nav class="side" role="tablist"><div class="brand">Central do clima</div>${Object.keys(views).map((k,i)=>`<button role="tab" aria-selected="${i==0}" data-v="${k}">${IC[k]}${names[k]}</button>`).join('')}</nav><div class="main" id="vB"></div>`;
+  const show=k=>{b.querySelector('#vB').innerHTML=views[k];b.querySelectorAll('.side button').forEach(x=>x.setAttribute('aria-selected',x.dataset.v===k));};
+  b.querySelectorAll('.side button').forEach(x=>x.addEventListener('click',()=>show(x.dataset.v)));
+  show('rules');
+}
+flyA();appB();
+// interações genéricas (delegadas)
+document.addEventListener('click',e=>{
+  const t=e.target.closest('button'); if(!t) return;
+  if(t.matches('.tabs button')){document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-selected',x===t));document.querySelectorAll('.stage').forEach(s=>s.hidden=s.dataset.p!==t.dataset.t);return;}
+  if(t.matches('.pwr:not(:disabled)')){t.setAttribute('aria-pressed',t.getAttribute('aria-pressed')!=='true');return;}
+  if(t.dataset.d){const v=t.parentElement.querySelector('[data-val]');if(v)v.textContent=Math.min(30,Math.max(16,+v.textContent+ +t.dataset.d));return;}
+  const g=t.closest('[data-g]'); if(g){g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===t));return;}
+  if(t.matches('.sg button')){t.textContent=t.textContent==='Ativar'?'Ativada':'Ativar';return;}
+});
+</script>

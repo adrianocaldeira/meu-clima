@@ -1,0 +1,15 @@
+<Project>
+
+  <!-- Fonte única de versão.
+       Para bumpar: scripts/bump-version.ps1 X.Y.Z
+       Lida em runtime via VersionInfo.Current (AssemblyInformationalVersion).
+       Lida no build do instalador pelo build-installer.bat e pelo release.yml (passam /DAppVersion ao ISCC).
+       O tag git vX.Y.Z precisa bater com este valor: o UpdateService compara o tag_name da release
+       latest com VersionInfo.Current. -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <AssemblyVersion>$(Version).0</AssemblyVersion>
+    <FileVersion>$(Version).0</FileVersion>
+  </PropertyGroup>
+
+</Project>

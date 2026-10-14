@@ -1,0 +1,276 @@
+using MeuClima.Core.Devices;
+using MeuClima.Core.History;
+using MeuClima.Core.Rules;
+using static MeuClima.Core.Devices.DeviceCommand;
+using static MeuClima.Core.Tests.TestKit;
+
+namespace MeuClima.Core.Tests;
+
+public class RuleEngineTests
+{
+    private static FakeHistory JanelaAbertaHistorico() =>
+        new([.. new[] { (0, 23), (10, 23), (20, 24), (25, 25) }
+            .Select(p => new HistorySample(At(14).AddMinutes(p.Item1), true, true, AcMode.Cool, p.Item2, 22))]);
+
+    [Fact]
+    public void Prioridade_maior_fica_com_o_aparelho()
+    {
+        var engine = new RuleEngine([
+            new EsfriarRapidoRule(new EsfriarRapidoConfig(Dev)),
+            new JanelaAbertaRule(new JanelaAbertaConfig(Dev)),
+        ]);
+
+        var r = engine.Evaluate(Ctx(At(14, 25), 31, Snap(ambient: 25), history: JanelaAbertaHistorico()));
+
+        var plan = Assert.Single(r.Commands);
+        Assert.Equal("Janela aberta", plan.RuleName);
+        Assert.Equal([new Power(false)], plan.Commands);
+        Assert.Contains(r.Active, a => a.Status.Title.StartsWith("Esfriar rápido") && a.BlockedBy == "Janela aberta");
+    }
+
+    [Fact]
+    public void Ajuste_manual_pausa_por_60_min_e_depois_volta()
+    {
+        var engine = new RuleEngine([new EsfriarRapidoRule(new EsfriarRapidoConfig(Dev))]);
+        engine.Pause(Dev, At(14) + RuleEngine.ManualPause);
+
+        var pausado = engine.Evaluate(Ctx(At(14, 30), 31, Snap(ambient: 25)));
+        Assert.Empty(pausado.Commands);
+        Assert.Contains(pausado.Active, a => a.BlockedBy!.StartsWith("ajuste manual · volta às 15:00"));
+
+        var depois = engine.Evaluate(Ctx(At(15, 1), 31, Snap(ambient: 25)));
+        Assert.NotEmpty(depois.Commands);
+    }
+
+    [Fact]
+    public void Mudanca_sem_comando_recente_conta_como_manual()
+    {
+        var engine = new RuleEngine([]);
+
+        Assert.True(engine.ObserveReading(Snap(target: 23), Snap(target: 20), At(14)));
+        Assert.NotNull(engine.PausedUntil(Dev, At(14, 59)));
+        Assert.Null(engine.PausedUntil(Dev, At(15, 1)));
+    }
+
+    [Fact]
+    public void Mudanca_logo_apos_comando_do_app_nao_conta_como_manual()
+    {
+        var engine = new RuleEngine([]);
+        engine.RecordSent(Dev, [new SetTarget(20)], At(14));
+
+        Assert.False(engine.ObserveReading(Snap(target: 23), Snap(target: 20), At(14, 1)));
+        Assert.Null(engine.PausedUntil(Dev, At(14, 2)));
+    }
+
+    [Fact]
+    public void Ajuste_diferente_do_pedido_dentro_da_janela_conta_como_manual()
+    {
+        var engine = new RuleEngine([]);
+        engine.RecordSent(Dev, [new SetTarget(22)], At(14));
+
+        Assert.True(engine.ObserveReading(Snap(target: 24), Snap(target: 26), At(14, 1)));
+        Assert.NotNull(engine.PausedUntil(Dev, At(14, 30)));
+    }
+
+    [Fact]
+    public void Desligar_no_controle_logo_apos_comando_conta_como_manual()
+    {
+        var engine = new RuleEngine([]);
+        engine.RecordSent(Dev, [new SetTarget(22)], At(14));
+
+        Assert.True(engine.ObserveReading(Snap(on: true, target: 24), Snap(on: false, target: 24), At(14, 1)));
+    }
+
+    [Fact]
+    public void Efeito_colateral_depois_da_confirmacao_nao_conta_como_manual()
+    {
+        var engine = new RuleEngine([]);
+        engine.RecordSent(Dev, [new SetMode(AcMode.Auto), new SetTarget(26)], At(14));
+        var confirmado = Snap(mode: AcMode.Auto, fan: FanSpeed.Low, target: 26);
+        Assert.False(engine.ObserveReading(Snap(target: 23), confirmado, At(14, 1)));
+        engine.Expected(confirmado, At(14, 1).AddSeconds(30));
+
+        Assert.False(engine.ObserveReading(confirmado, confirmado with { Fan = FanSpeed.Auto }, At(14, 2)));
+    }
+
+    [Fact]
+    public void Trocar_o_modo_depois_de_um_ajuste_de_temperatura_conta_como_manual()
+    {
+        var engine = new RuleEngine([]);
+        engine.RecordSent(Dev, [new SetTarget(22)], At(14));
+        var confirmado = Snap(mode: AcMode.Cool, target: 22);
+        Assert.False(engine.ObserveReading(Snap(target: 24), confirmado, At(14, 1)));
+
+        Assert.True(engine.ObserveReading(confirmado, confirmado with { Mode = AcMode.Heat }, At(14, 2)));
+    }
+
+    [Fact]
+    public void Comando_recusado_sai_do_estado_otimista()
+    {
+        var engine = new RuleEngine([]);
+        engine.RecordSent(Dev, [new SetFan(FanSpeed.High), new SetTarget(22)], At(14));
+
+        engine.DiscardPending(Dev, [new SetTarget(22)]);
+
+        var leitura = Snap(target: 24);
+        Assert.Equal(24, engine.Expected(leitura, At(14)).TargetC);
+        Assert.Equal(FanSpeed.High, engine.Expected(leitura, At(14)).Fan);
+    }
+
+    [Fact]
+    public void Ajuste_manual_descarta_o_pedido_pendente_do_app()
+    {
+        var engine = new RuleEngine([]);
+        engine.RecordSent(Dev, [new SetTarget(22)], At(14));
+        var doUsuario = Snap(target: 26);
+        Assert.True(engine.ObserveReading(Snap(target: 24), doUsuario, At(14, 1)));
+
+        Assert.Equal(26, engine.Expected(doUsuario, At(14, 1)).TargetC);
+    }
+
+    [Fact]
+    public void Regra_com_erro_avisa_uma_vez()
+    {
+        var engine = new RuleEngine([new EsfriarRapidoRule(new EsfriarRapidoConfig(null!))]);
+
+        var primeiro = engine.Evaluate(Ctx(At(14), 31, Snap(ambient: 25)));
+        var segundo = engine.Evaluate(Ctx(At(14, 1), 31, Snap(ambient: 25)));
+
+        Assert.Single(primeiro.Notifications);
+        Assert.Empty(segundo.Notifications);
+    }
+
+    [Fact]
+    public void Comando_novo_substitui_o_pendente_do_mesmo_tipo()
+    {
+        var engine = new RuleEngine([]);
+        engine.RecordSent(Dev, [new SetMode(AcMode.Cool)], At(14));
+        engine.RecordSent(Dev, [new SetMode(AcMode.Auto)], At(14, 1));
+        var leitura = Snap(mode: AcMode.Auto);
+
+        Assert.Same(leitura, engine.Expected(leitura, At(14, 2)));
+    }
+
+    [Fact]
+    public void Motor_recriado_mantem_envio_recente()
+    {
+        var antigo = new RuleEngine([]);
+        antigo.RecordSent(Dev, [new SetTarget(20)], At(14));
+        var novo = new RuleEngine([]);
+        novo.CopyRuntimeFrom(antigo);
+
+        Assert.False(novo.ObserveReading(Snap(target: 23), Snap(target: 20), At(14, 1)));
+    }
+
+    [Fact]
+    public void Janela_de_confirmacao_maior_cobre_leitura_a_cada_5_min()
+    {
+        var engine = new RuleEngine([]) { ConfirmationWindow = TimeSpan.FromMinutes(6) };
+        engine.RecordSent(Dev, [new SetTarget(20)], At(14));
+
+        Assert.False(engine.ObserveReading(Snap(target: 23), Snap(target: 20), At(14, 5)));
+    }
+
+    [Fact]
+    public void Comando_aguardando_confirmacao_nao_e_reenviado()
+    {
+        var engine = new RuleEngine([new EsfriarRapidoRule(new EsfriarRapidoConfig(Dev))]);
+        var primeiro = engine.Evaluate(Ctx(At(14), 31, Snap(ambient: 25)));
+        var enviados = Assert.Single(primeiro.Commands).Commands;
+        engine.RecordSent(Dev, enviados, At(14));
+
+        var segundo = engine.Evaluate(Ctx(At(14, 1), 31, Snap(ambient: 25)));
+
+        Assert.Empty(segundo.Commands);
+    }
+
+    [Fact]
+    public void Aparelho_sem_conexao_nao_recebe_comando()
+    {
+        var engine = new RuleEngine([new EsfriarRapidoRule(new EsfriarRapidoConfig(Dev))]);
+
+        var r = engine.Evaluate(Ctx(At(14), 31, Snap(ambient: 25, connected: false)));
+
+        Assert.Empty(r.Commands);
+        Assert.Contains(r.Active, a => a.BlockedBy == "aparelho sem conexão");
+    }
+}
+
+public class InsightsCalculatorTests
+{
+    private static HistorySample S(int min, bool on, int amb, bool conn = true) =>
+        new(At(14).AddMinutes(min), conn, on, AcMode.Cool, amb, 22);
+
+    [Fact]
+    public void Runtime_soma_trechos_ligados_e_ignora_lacunas()
+    {
+        HistorySample[] s = [S(0, true, 25), S(1, true, 25), S(2, false, 25), S(3, true, 25), S(60, true, 25), S(61, false, 25)];
+
+        var t = InsightsCalculator.Runtime(s, At(14), At(15, 30));
+
+        Assert.Equal(TimeSpan.FromMinutes(3), t);
+    }
+
+    [Fact]
+    public void Minutos_por_grau_mede_entre_degraus_de_queda()
+    {
+        HistorySample[] s = [S(0, true, 26), S(2, true, 25), S(5, true, 25), S(8, true, 24), S(10, true, 24), S(13, true, 24), S(16, true, 23)];
+
+        Assert.Equal(7, InsightsCalculator.MinutesPerDegree(s));
+    }
+
+    [Fact]
+    public void Quedas_de_conexao_e_desde_quando()
+    {
+        HistorySample[] s = [S(0, true, 25), S(1, true, 25, false), S(2, true, 25), S(3, true, 25, false), S(4, true, 25, false)];
+
+        Assert.Equal(2, InsightsCalculator.Disconnections(s));
+        Assert.Equal(At(14, 3), InsightsCalculator.DisconnectedSince(s));
+    }
+
+    [Fact]
+    public void Tempo_desligado_pelo_sai_do_pc()
+    {
+        EventRecord[] e =
+        [
+            new(At(10), Dev, "sai-do-pc:desligou", ""), new(At(11), Dev, "sai-do-pc:voltou", ""),
+            new(At(13), Dev, "sai-do-pc:desligou", ""),
+        ];
+
+        Assert.Equal(TimeSpan.FromMinutes(90), InsightsCalculator.AwayOffTime(e, At(13, 30)));
+    }
+}
+
+public class HistoryStoreTests
+{
+    [Fact]
+    public void Grava_e_le_leituras_clima_e_eventos()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"meuclima-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using (var store = new HistoryStore(path))
+            {
+                store.Record(Snap(ambient: 25) with { ReadAt = At(14) });
+                store.Record(Snap(ambient: 24, on: false) with { ReadAt = At(14, 1) });
+                store.RecordOutside(At(14), 31.5);
+                store.RecordEvent(At(14), Dev, "sai-do-pc:desligou", "x");
+
+                var s = store.Samples(Dev, At(13));
+                Assert.Equal(2, s.Count);
+                Assert.Equal(25, s[0].AmbientC);
+                Assert.False(s[1].On);
+                Assert.Equal(31.5, Assert.Single(store.Outside(At(13))).TempC);
+                Assert.Single(store.Events(At(13)));
+
+                store.Prune(At(14, 1));
+                Assert.Single(store.Samples(Dev, At(13)));
+            }
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            File.Delete(path);
+        }
+    }
+}

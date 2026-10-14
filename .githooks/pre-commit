@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Pre-commit hook — Meu Clima
+# Roda gitleaks no staging para impedir commit com segredos
+# (API key / refresh token da Electrolux, por exemplo).
+# Ativado via: git config core.hooksPath .githooks
+
+set -e
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "[gitleaks] binário não encontrado no PATH — pulando varredura."
+  echo "[gitleaks] Instale: https://github.com/gitleaks/gitleaks#installation"
+  exit 0
+fi
+
+echo "[gitleaks] varrendo arquivos staged..."
+gitleaks protect --staged --verbose --redact --config .gitleaks.toml

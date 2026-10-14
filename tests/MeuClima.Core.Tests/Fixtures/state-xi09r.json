@@ -1,0 +1,35 @@
+{
+ "applianceId": "000000000_00:00000000-FAKE00000000",
+ "connectionState": "connected",
+ "properties": {
+  "reported": {
+   "cleanAirMode": "OFF",
+   "applianceInfo": {
+    "applianceType": "CA",
+    "capabilityHash": "3202e1aea59edfc738f9cf4b6131c9f4f600da146e3156695d84dd5bff0c8109"
+   },
+   "temperatureRepresentation": "CELSIUS",
+   "displayLight": "DISPLAY_LIGHT_100",
+   "currentEnergyUsePercent": 100,
+   "cpv": "00",
+   "targetTemperatureF": 73.4,
+   "targetTemperatureC": 23.0,
+   "flapPosition": 50,
+   "applianceState": "RUNNING",
+   "evaporatorDefrostState": "NOT_DEFROSTING",
+   "applianceMainBoardSwVersion": "SW424.v06 \u0000",
+   "mode": "COOL",
+   "alerts": [],
+   "filterState": "GOOD",
+   "soundVolume": 0,
+   "fanSpeedSetting": "LOW",
+   "stopTime": 0,
+   "flapOscillate": "OFF",
+   "connectivityState": "connected",
+   "energySavingMode": "ON",
+   "ambientTemperatureF": 77.0,
+   "ambientTemperatureC": 25.0
+  }
+ },
+ "status": "enabled"
+}
