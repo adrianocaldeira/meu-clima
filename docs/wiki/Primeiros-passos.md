@@ -28,7 +28,7 @@ criptografadas pelo Windows (DPAPI) para o seu usuário.
    - **Refresh token** — é este que você copia.
 6. Abra o Meu Clima (clique no ícone da bandeja). Na tela de configuração, cole a **API key** e o
    **refresh token**.
-7. O app busca os aparelhos da conta. Escolha o ar-condicionado que quer controlar.
+7. Clique em **Conectar**. O app busca os aparelhos da conta e controla todos eles.
 
 > [!WARNING]
 > **O refresh token muda a cada renovação.** O Meu Clima guarda o novo valor sozinho. Se você usar o
@@ -40,35 +40,49 @@ criptografadas pelo Windows (DPAPI) para o seu usuário.
 
 > [!NOTE]
 > Os nomes de menus e botões do portal são da Electrolux e podem mudar. Se algum passo não bater com
-> o que você vê, [abra uma issue de docs](https://github.com/adrianocaldeira/meu-clima/issues/new?labels=docs).
+> o que você vê, [abra uma issue de docs](https://github.com/adrianocaldeira/meu-clima/issues/new?labels=documentation).
 
 ## 3. Informe a sua localização para o clima externo
 
 O clima de fora vem do [Open-Meteo](https://open-meteo.com/), gratuito e sem cadastro. Busque a sua
 cidade na configuração. Ela só é usada para consultar o tempo.
 
-## 4. Teste o controle
+## 4. Diga em qual cômodo fica o PC
+
+Ainda na configuração, escolha o aparelho do cômodo onde fica este PC. "Saí do PC", "Esfriar rápido"
+e "Antes do pico" agem nesse aparelho.
+
+## 5. Teste o controle
 
 Pelo ícone da bandeja:
 
-- **Clique** — abre a janela com o estado atual do ar e o clima lá fora.
-- **Clique direito** — ações rápidas.
+- **Clique** — abre o painel com o estado atual do ar, o clima lá fora e o controle rápido.
+- **Clique direito** — menu para abrir a central, as regras, ligar ou desligar o início com o
+  Windows, verificar atualizações e sair.
 
 Mude a temperatura e confira no app Electrolux do celular que o comando chegou.
 
-## 5. Ligue as regras que fazem sentido
+## 6. Revise as regras
 
-Comece com uma ou duas. Sugestão para quem trabalha no PC:
+Ao concluir a configuração, o app cria as seis regras **já ligadas**. Abra a central → **Regras**,
+desligue as que não fazem sentido para você e ajuste os valores das outras.
+
+Se preferir começar devagar, deixe só estas ligadas:
 
 - **[Saí do PC](Regras#saí-do-pc)** — economiza quando você se afasta.
 - **[Antes do pico](Regras#antes-do-pico)** — chega à tarde com o ambiente já fresco.
 
 Explicação de todas em [[Regras]].
 
-## 6. Iniciar com o Windows
+## 7. Iniciar com o Windows
 
-Ligue **"Iniciar com o Windows"** nas configurações para as regras estarem ativas sempre que você
-fizer login. Lembre: **sem login no Windows, nenhuma regra roda.**
+**"Iniciar com o Windows"** vem ligado, para as regras estarem ativas sempre que você fizer login.
+Desligue em **Ajustes** ou no menu do ícone da bandeja. Lembre: **sem login no Windows, nenhuma
+regra roda.**
+
+## 8. Tema
+
+Em **Ajustes** → **Tema**, escolha Claro, Escuro ou Sistema. Sistema segue o tema do Windows.
 
 ## Próximos passos
 

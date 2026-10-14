@@ -1,1 +1,1 @@
-Meu Clima · [MIT License](https://github.com/adrianocaldeira/meu-clima/blob/main/LICENSE) · Não afiliado à Electrolux · Clima: [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0) · [Reportar problema na wiki](https://github.com/adrianocaldeira/meu-clima/issues/new?labels=docs)
+Meu Clima · [MIT License](https://github.com/adrianocaldeira/meu-clima/blob/main/LICENSE) · Não afiliado à Electrolux · Clima: [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0) · [Reportar problema na wiki](https://github.com/adrianocaldeira/meu-clima/issues/new?labels=documentation)

@@ -5,12 +5,12 @@ Obrigado por considerar contribuir! Bug, ideia ou PR é bem-vindo.
 ## Como reportar bug ou pedir feature
 
 - **Bugs** → [Issue templates](https://github.com/adrianocaldeira/meu-clima/issues/new/choose) → "Bug report"
-- **Ideias** → [Discussions](https://github.com/adrianocaldeira/meu-clima/discussions) primeiro (alinha antes de codar)
+- **Ideias** → [Issue templates](https://github.com/adrianocaldeira/meu-clima/issues/new/choose) → "Feature request" (alinhe antes de codar)
 - **Vulnerabilidade de segurança** → não abra issue pública. Veja [SECURITY.md](SECURITY.md).
 
 > [!WARNING]
 > **Nunca cole API key, access token, refresh token, número de série ou ID de aparelho** em issue,
-> PR, discussion ou log anexado. Se colou sem querer, revogue a credencial no portal
+> PR ou log anexado. Se colou sem querer, revogue a credencial no portal
 > [developer.electrolux.one](https://developer.electrolux.one/) e gere outra.
 
 ## Setup local
@@ -117,4 +117,4 @@ verificador de atualizações derivam dali.
 
 ## Dúvidas?
 
-Abra uma [discussion](https://github.com/adrianocaldeira/meu-clima/discussions/new/choose).
+Abra uma [issue](https://github.com/adrianocaldeira/meu-clima/issues/new/choose).

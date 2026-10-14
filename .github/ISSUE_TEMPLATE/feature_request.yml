@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Para ideias amplas ou ainda em construção, prefira uma [discussion](https://github.com/adrianocaldeira/meu-clima/discussions). Para algo mais concreto, siga em frente!
+        Descreva o problema que a ideia resolve; a solução pode ficar em aberto.
 
   - type: textarea
     id: problem

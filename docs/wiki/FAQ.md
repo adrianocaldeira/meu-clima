@@ -24,7 +24,6 @@ as suas credenciais. Não tem afiliação, patrocínio nem suporte da Electrolux
 
 ### Preciso pagar alguma coisa no portal da Electrolux?
 
-<!-- TODO: confirmar no portal. -->
 Até onde sabemos, criar API key e token no [developer.electrolux.one](https://developer.electrolux.one/)
 é gratuito para uso pessoal. Os termos são da Electrolux; confira no portal.
 

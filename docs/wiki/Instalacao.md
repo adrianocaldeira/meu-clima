@@ -23,12 +23,14 @@ Três caminhos. Escolha o que mais combina com você.
 1. Acesse https://github.com/adrianocaldeira/meu-clima/releases/latest
 2. Baixe `MeuClima-Setup-vX.Y.Z.exe`
 3. Execute. O wizard pergunta:
+   - Para quem instalar: só para você (padrão, sem administrador) ou para todos os usuários (pede administrador)
    - Pasta de instalação (padrão: `%LocalAppData%\Programs\Meu Clima`, ou `Program Files` se escolher instalar para todos)
    - Criar ícone na área de trabalho (opcional)
 4. Na última tela, deixe marcado **"Executar Meu Clima"**. O ícone aparece na bandeja (perto do relógio).
 
-O instalador **não** configura o início com o Windows. Isso é uma opção dentro do app, que você liga
-ou desliga quando quiser.
+O instalador **não** configura o início com o Windows: quem faz isso é o próprio app. Ele vem ligado
+na primeira execução. Para desligar, use a central → **Ajustes** → **Iniciar com o Windows**, ou o
+menu do ícone da bandeja.
 
 > [!IMPORTANT]
 > Na primeira execução o **Windows SmartScreen** pode bloquear (o `.exe` não tem assinatura comercial). Clique em **"Mais informações" → "Executar assim mesmo"**. Veja [[FAQ]].
@@ -43,7 +45,7 @@ remove a entrada de início com o Windows.
 ## 2. Portable (sem instalar)
 
 1. Baixe `MeuClima.exe` na [página de releases](https://github.com/adrianocaldeira/meu-clima/releases/latest)
-2. Salve numa pasta fixa (se você ligar "Iniciar com o Windows", o Windows vai procurar o `.exe` nesse caminho)
+2. Salve numa pasta fixa ("Iniciar com o Windows" vem ligado e o Windows vai procurar o `.exe` nesse caminho)
 3. Execute com duplo clique
 
 Desvantagens:

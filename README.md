@@ -51,17 +51,17 @@ com a API da Electrolux e com o Open-Meteo.
 
 | | | |
 |---|---|---|
-| 🧊 **Controle rápido** pela bandeja: ligar, desligar, temperatura, modo e ventilação | 🌤️ **Clima externo** via [Open-Meteo](https://open-meteo.com/): agora e previsão | 🤖 **6 regras automáticas** que você liga e configura |
-| 📊 **Insights**: horas ligado, energia estimada, tempo para esfriar | 🪟 **Inicia com o Windows** (opcional) | 🔄 **Atualização automática** com verificação de integridade |
-| 🇧🇷 **100% em português** | 🔒 **Credenciais só no seu PC**, protegidas pelo Windows (DPAPI) | 📦 **Single-file `.exe`** self-contained |
+| 🧊 **Controle rápido** pela bandeja: ligar, desligar, temperatura, modo, ventilação e timer, em todos os aparelhos da conta | 🌤️ **Clima externo** via [Open-Meteo](https://open-meteo.com/): agora e previsão | 🤖 **6 regras automáticas** que você liga, desliga e configura |
+| 📊 **Insights**: horas ligado, energia estimada, tempo para esfriar, gráfico fora × dentro | 🪟 **Inicia com o Windows** (vem ligado; desligue quando quiser) | 🔄 **Atualização automática** com verificação de integridade |
+| 🇧🇷 **100% em português** · tema claro, escuro ou do sistema | 🔒 **Credenciais só no seu PC**, protegidas pelo Windows (DPAPI) | 📦 **Single-file `.exe`** self-contained |
 
 ### Regras automáticas
 
 | Regra | Em uma frase |
 |---|---|
-| **Esfriar rápido** | Dia quente e você no PC: Turbo até 22 °C, depois mantém em 24 °C. |
+| **Esfriar rápido** | Fora a partir de 24 °C e você no PC: Turbo até 22 °C, depois mantém em 24 °C. Agenda por dia e horário opcional. |
 | **Saí do PC** | Tela bloqueada ou sem uso: economia aos 20 min, desliga aos 60, restaura na volta. |
-| **Antes do pico** | Previsão de ≥ 32 °C hoje: liga 30 min antes da hora mais quente. |
+| **Antes do pico** | Previsão de ≥ 32 °C hoje: liga o ar desligado 30 min antes da primeira hora com essa previsão. |
 | **Janela aberta** | Ligado em Frio e o ambiente esquentando: desliga e avisa. |
 | **Modo noite** | Timer de 4 h no próprio aparelho e +1 °C por hora. |
 | **Fora mais fresco** | Lá fora 3 °C mais fresco que dentro: avisa para desligar e abrir a janela. |
@@ -73,7 +73,7 @@ Detalhes e limites de cada uma na [Wiki → Regras](https://github.com/adrianoca
 
 ### Opção 1 — Instalador (recomendado)
 
-Baixe `MeuClima-Setup-vX.Y.Z.exe` na [página de releases](https://github.com/adrianocaldeira/meu-clima/releases/latest) e execute. Não precisa de administrador. No fim, marque **"Executar Meu Clima"**. O início com o Windows é ligado ou desligado dentro do próprio app.
+Baixe `MeuClima-Setup-vX.Y.Z.exe` na [página de releases](https://github.com/adrianocaldeira/meu-clima/releases/latest) e execute. Não precisa de administrador. No fim, marque **"Executar Meu Clima"**. O início com o Windows vem ligado; desligue em **Ajustes** ou no menu do ícone da bandeja.
 
 ### Opção 2 — Portable (sem instalar)
 
@@ -104,7 +104,7 @@ O Meu Clima usa a API oficial com **as suas** credenciais. Ninguém além de voc
 4. Ainda no portal, **gere um token**. O portal mostra um *access token* e um **refresh token** —
    copie o **refresh token**.
 5. Abra o Meu Clima (ícone na bandeja) e cole a **API key** e o **refresh token** na tela de configuração.
-   O app lista os aparelhos da conta; escolha o seu.
+   O app lista os aparelhos da conta. Escolha a sua cidade e o aparelho do cômodo onde fica o PC.
 
 > [!WARNING]
 > - O refresh token **muda a cada renovação** e o Meu Clima guarda o novo automaticamente. Se você usar
@@ -116,11 +116,13 @@ O Meu Clima usa a API oficial com **as suas** credenciais. Ninguém além de voc
 
 ## 🎯 Uso rápido
 
-1. **Clique no ícone da bandeja** para ver o estado do ar e o clima lá fora.
-2. **Clique direito** no ícone para as ações rápidas.
-3. **Ative as regras** que fazem sentido para a sua rotina e ajuste os parâmetros.
+1. **Clique no ícone da bandeja** para ver o estado do ar, o clima lá fora e o controle rápido.
+2. **Clique direito** no ícone para abrir a central, as regras, ligar ou desligar o início com o Windows,
+   verificar atualizações ou sair.
+3. **Revise as regras.** Ao terminar a configuração, o app cria as seis regras já ligadas. Desligue as
+   que não servem para a sua rotina e ajuste os valores das outras.
 4. **Veja os insights** depois de alguns dias de uso.
-5. **Deixe "Iniciar com o Windows" ligado** se quiser as regras sempre ativas quando você estiver no PC.
+5. **Deixe "Iniciar com o Windows" ligado** (vem assim) se quiser as regras sempre ativas quando você estiver no PC.
 
 ## 🧱 Stack técnica
 
@@ -136,19 +138,17 @@ Detalhes na [Wiki/Arquitetura](https://github.com/adrianocaldeira/meu-clima/wiki
 
 ## 🗺️ Roadmap
 
-### 🚧 Em construção (v0.1.0)
-- Controle do ar-condicionado Electrolux pela bandeja
-- Clima externo via Open-Meteo
-- 6 regras automáticas
-- Insights de uso
+### ✅ Já entregue (v0.1.0)
+- Controle do ar-condicionado Electrolux pela bandeja, para todos os aparelhos da conta
+- Clima externo e previsão do dia via Open-Meteo
+- 6 regras automáticas, cada uma ligada a um aparelho, com pausa de 1 hora após ajuste manual
+- Agenda por dias da semana e horário no "Esfriar rápido"; horário diário no "Modo noite"
+- Insights de uso, com gráfico fora × dentro de 24 h ou 7 dias
+- Tema claro, escuro ou do sistema (segue o Windows)
 - Início com o Windows
-- Atualização automática
+- Atualização automática com verificação de integridade
 
-### 💭 Ideias
-- Mais de um aparelho ao mesmo tempo
-- Regras com agenda semanal
-
-Sugestões? [Abra uma discussion](https://github.com/adrianocaldeira/meu-clima/discussions) ou [crie uma issue](https://github.com/adrianocaldeira/meu-clima/issues/new/choose).
+Sugestões? [Crie uma issue](https://github.com/adrianocaldeira/meu-clima/issues/new/choose).
 
 ## 🤝 Contribuindo
 

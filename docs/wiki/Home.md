@@ -28,4 +28,4 @@ Bem-vindo! Aqui você encontra o manual detalhado do **Meu Clima**. Para visão 
 
 Setup local, padrão de commits e fluxo de PR estão em [CONTRIBUTING.md](https://github.com/adrianocaldeira/meu-clima/blob/main/CONTRIBUTING.md).
 
-Bugs e ideias: [Issues](https://github.com/adrianocaldeira/meu-clima/issues) · Conversas abertas: [Discussions](https://github.com/adrianocaldeira/meu-clima/discussions).
+Bugs, dúvidas e ideias: [Issues](https://github.com/adrianocaldeira/meu-clima/issues).

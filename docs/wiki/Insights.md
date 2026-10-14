@@ -1,18 +1,34 @@
 # Insights
 
 O Meu Clima guarda, **no seu PC**, um histórico do estado dos aparelhos, do clima e das ações das
-regras. A tela de insights resume esse histórico.
+regras. A tela de insights resume esse histórico. Abra pela central → **Insights**.
 
-## O que aparece
+## Números do topo
 
 | Insight | O que mostra |
 |---|---|
-| **Horas ligado** | Tempo com o aparelho ligado hoje e ontem. |
-| **Energia estimada** | Horas ligado × potência média (padrão 800 W) e o custo pela tarifa (padrão R$ 0,85/kWh). Ajuste os dois para o seu aparelho e a sua conta de luz. |
-| **Minutos para baixar 1 °C** | Quanto o aparelho demora para esfriar o ambiente um grau, últimos 7 dias comparados com os últimos 30. Piora contínua pode indicar filtro sujo ou falta de gás. |
-| **Quedas de conexão** | Quantas vezes o aparelho ficou offline nos últimos 7 dias. |
-| **Pico previsto de amanhã** | A temperatura máxima prevista e a hora — útil para planejar com "Antes do pico". |
-| **Economia do "Saí do PC"** | Tempo de aparelho desligado graças à regra. |
+| **Ligado hoje** | Tempo com ar ligado hoje, somando todos os aparelhos, e o total de ontem. |
+| **Energia hoje** | Horas ligado hoje × potência média (padrão 800 W) e o custo pela tarifa (padrão R$ 0,85/kWh). Ajuste os dois em **Ajustes** → **Estimativa de energia**. |
+| **Para baixar 1 °C** | Quanto o aparelho do cômodo do PC demora para esfriar o ambiente um grau no Frio: média dos últimos 7 dias, comparada com a dos últimos 30. |
+
+## Gráfico
+
+Temperatura de fora × temperatura de cada aparelho, nas últimas **24 h** ou nos últimos **7 dias**.
+A faixa destacada marca quando o ar estava ligado.
+
+## O que notamos
+
+Avisos que aparecem só quando há algo a dizer:
+
+| Aviso | Quando aparece |
+|---|---|
+| **Sem conexão** | O aparelho está offline agora, ou caiu 3 vezes ou mais nos últimos 7 dias. |
+| **Filtro** | O aparelho informa que o filtro precisa de limpeza ou troca. |
+| **Alerta do aparelho** | O aparelho reportou algum alerta. |
+| **Esfriando mais devagar** | A média de 7 dias para baixar 1 °C está mais de 15% acima da de 30 dias. Costuma ser filtro sujo. |
+| **Mais tempo ligado hoje** | Hoje passou de 30% acima de ontem (com ontem acima de 1 h). |
+| **Pico previsto de amanhã** | A máxima prevista e a hora. Diz se "Antes do pico" vai agir. |
+| **Economia do "Saí do PC"** | Tempo que a regra manteve o ar desligado nos últimos 7 dias, com a energia estimada. Aparece a partir de 30 min. |
 
 ## Limites
 
@@ -21,6 +37,7 @@ regras. A tela de insights resume esse histórico.
 - **Só o que o PC viu.** O histórico só é gravado com o app aberto. Horas com o PC desligado ficam em
   branco; comandos feitos pelo celular nesse período não entram.
 - **Temperatura interna é a do aparelho**, medida perto dele e em graus inteiros.
+- **O histórico guarda 90 dias.** O mais antigo é apagado sozinho.
 
 ## Privacidade
 
