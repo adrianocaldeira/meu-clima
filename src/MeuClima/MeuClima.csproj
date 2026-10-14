@@ -9,6 +9,7 @@
     <!-- NotifyIcon (bandeja) vem do WinForms. -->
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>Resources\app-icon.ico</ApplicationIcon>
+    <AssemblyTitle>Meu Clima</AssemblyTitle>
     <AssemblyName>MeuClima</AssemblyName>
     <RootNamespace>MeuClima</RootNamespace>
     <PublishSingleFile>true</PublishSingleFile>

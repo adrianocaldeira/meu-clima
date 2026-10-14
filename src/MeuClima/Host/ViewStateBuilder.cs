@@ -8,6 +8,9 @@ using MeuClima.Core.Weather;
 
 namespace MeuClima.Host;
 
+/// <summary>Estado serializado para as telas; a versão impede que um estado velho substitua um novo.</summary>
+public sealed record StateMessage(long Version, string Json);
+
 public sealed record ViewInputs(
     AppSettings Settings,
     bool HasCredentials,
@@ -123,6 +126,7 @@ public static class ViewStateBuilder
                 tariffPerKwh = s.TariffPerKwh,
                 pcDeviceId = s.PcDeviceId,
                 theme = s.Theme,
+                checkUpdates = s.CheckUpdates,
             },
             version = ClimateService.VersionLabel,
             update = UpdateState.Current,

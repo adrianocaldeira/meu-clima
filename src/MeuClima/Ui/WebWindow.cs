@@ -17,6 +17,7 @@ public class WebWindow : Window
     private readonly string _page;
     private readonly List<string> _queue = [];
     private bool _ready;
+    private long _stateSent;
 
     public WebWindow(string page)
     {
@@ -118,7 +119,12 @@ public class WebWindow : Window
             try
             {
                 using var doc = JsonDocument.Parse(e.WebMessageAsJson);
-                if (doc.RootElement.TryGetProperty("type", out var t) && t.GetString() == "ready") Flush();
+                if (doc.RootElement.TryGetProperty("type", out var t) && t.GetString() == "ready")
+                {
+                    // Página (re)carregada: precisa receber o estado de novo, mesmo que repetido.
+                    _stateSent = 0;
+                    Flush();
+                }
                 if (Message is { } handler) await handler(this, doc.RootElement.Clone());
             }
             catch (Exception ex)
@@ -133,11 +139,25 @@ public class WebWindow : Window
     public void Post(string type, string dataJson)
     {
         var msg = $"{{\"type\":{JsonSerializer.Serialize(type)},\"data\":{dataJson}}}";
+        Dispatcher.InvokeAsync(() => Send(msg));
+    }
+
+    /// <summary>Envia o estado, descartando um mais antigo que o último enviado (entregas fora de ordem).</summary>
+    public void PostState(StateMessage state)
+    {
+        var msg = $"{{\"type\":\"state\",\"data\":{state.Json}}}";
         Dispatcher.InvokeAsync(() =>
         {
-            if (!_ready) { _queue.Add(msg); return; }
-            _web.CoreWebView2?.PostWebMessageAsJson(msg);
+            if (state.Version <= _stateSent) return;
+            _stateSent = state.Version;
+            Send(msg);
         });
+    }
+
+    private void Send(string msg)
+    {
+        if (!_ready) { _queue.Add(msg); return; }
+        _web.CoreWebView2?.PostWebMessageAsJson(msg);
     }
 
     private void Flush()

@@ -77,6 +77,8 @@
     parts.push(weatherBand());
     (state.activeRules || []).forEach(r => parts.push(liveRule(r)));
     if (!setupDone) parts.push(setupCard());
+    else if (!state.devices.length && !state.updatedAt && !(state.account && state.account.error))
+      parts.push(`<div class="empty"><b>Lendo os seus aparelhos…</b><span class="small">A primeira leitura da Electrolux pode levar alguns segundos.</span></div>`);
     else if (!state.devices.length) parts.push(`<div class="empty"><b>Nenhum aparelho encontrado</b><span class="small">Confira na central se a conta Electrolux certa está conectada.</span></div>`);
     else parts.push(`<div>${state.devices.map(deviceRow).join('')}</div>`);
     renderKeepFocus(view, parts.join(''));

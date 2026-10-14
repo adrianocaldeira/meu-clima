@@ -96,6 +96,7 @@ jobs:
               Write-Error "Seção [$version] não encontrada no CHANGELOG.md. Crie a seção antes de gerar a tag."
               exit 1
           }
+          $notes += "`n`n---`n[Code signing policy](https://github.com/adrianocaldeira/meu-clima#code-signing-policy) · [Privacidade](https://github.com/adrianocaldeira/meu-clima/blob/main/PRIVACIDADE.md)"
           Set-Content -Path release-notes.md -Value $notes -Encoding utf8
 
       - name: Create GitHub Release

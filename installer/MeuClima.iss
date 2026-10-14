@@ -1,10 +1,10 @@
 ﻿; Inno Setup Script - Meu Clima
 ; Para compilar: baixe Inno Setup em https://jrsoftware.org/isinfo.php
 ;
-; O instalador NÃO registra o início com o Windows: o próprio app grava/remove o valor
-; "MeuClima" em HKCU\Software\Microsoft\Windows\CurrentVersion\Run conforme a preferência
-; do usuário. Na desinstalação, o [Code] abaixo apaga esse valor para o Windows não tentar
-; abrir um .exe que não existe mais.
+; O instalador só pergunta se o app deve iniciar com o Windows e grava a resposta em
+; Software\MeuClima\StartWithWindows ("1;carimbo"); o app aplica cada carimbo novo uma vez e grava/remove o valor
+; "MeuClima" em ...\CurrentVersion\Run. Na desinstalação, o [Code] abaixo apaga esse valor para o
+; Windows não tentar abrir um .exe que não existe mais.
 
 #define AppName "Meu Clima"
 ; Versão vem do build-installer.bat / release.yml via ISCC /DAppVersion=X.Y.Z (lê de Directory.Build.props).
@@ -34,6 +34,7 @@ DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 AllowNoIcons=yes
 LicenseFile=
+InfoBeforeFile=..\PRIVACIDADE.md
 OutputDir=dist
 OutputBaseFilename=MeuClima-Setup-v{#AppVersion}
 SetupIconFile=..\src\MeuClima\Resources\app-icon.ico
@@ -46,6 +47,11 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#AppExeName}
 UninstallDisplayName={#AppName} {#AppVersion}
+VersionInfoVersion={#AppVersion}
+VersionInfoProductName={#AppName}
+VersionInfoProductVersion={#AppVersion}
+VersionInfoCompany={#AppPublisher}
+VersionInfoDescription={#AppName} - instalador
 ; App de bandeja fica sempre aberto: o Restart Manager fecha a instância em execução numa
 ; instalação manual. No auto-update o app já se encerrou antes do setup rodar.
 CloseApplications=yes
@@ -57,6 +63,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Criar ícone na área de trabalho"; GroupDescription: "Ícones adicionais:"; Flags: unchecked
+Name: "startup"; Description: "Iniciar o Meu Clima junto com o Windows (as regras só rodam com o app aberto)"; GroupDescription: "Inicialização:"
 
 [Files]
 ; Executável principal (publish single-file)
@@ -71,6 +78,10 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: deskto
 ; Registro do app — lido pelo InstallContext para saber se a instalação suporta auto-update
 ; e se exige elevação (per-machine).
 Root: HKA; Subkey: "Software\MeuClima"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
+; Escolha da tela de tarefas, com carimbo para o app aplicar uma vez (App.ApplyInstallerStartupChoice).
+; A atualização silenciosa não grava: senão desfaria o que o usuário mudou em Ajustes.
+Root: HKA; Subkey: "Software\MeuClima"; ValueType: string; ValueName: "StartWithWindows"; ValueData: "1;{code:Carimbo}"; Tasks: startup; Check: not WizardSilent
+Root: HKA; Subkey: "Software\MeuClima"; ValueType: string; ValueName: "StartWithWindows"; ValueData: "0;{code:Carimbo}"; Tasks: not startup; Check: not WizardSilent
 Root: HKA; Subkey: "Software\MeuClima"; ValueType: string; ValueName: "Version"; ValueData: "{#AppVersion}"
 Root: HKA; Subkey: "Software\MeuClima"; ValueType: string; ValueName: "InstallScope"; ValueData: "{code:GetInstallScope}"
 
@@ -89,6 +100,11 @@ Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM {#AppExeName}"; Flags: runhi
 Type: filesandordirs; Name: "{app}"
 
 [Code]
+function Carimbo(Param: string): string;
+begin
+  Result := GetDateTimeString('yyyymmddhhnnss', #0, #0);
+end;
+
 function GetInstallScope(Param: string): string;
 begin
   if IsAdminInstallMode then

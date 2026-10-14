@@ -33,7 +33,10 @@ public sealed record AppSettings
 {
     public Place? City { get; init; }
     public string? PcDeviceId { get; init; }
-    public bool StartWithWindows { get; init; } = true;
+    public bool StartWithWindows { get; init; }
+    public bool CheckUpdates { get; init; } = true;
+    /// <summary>Carimbo da última escolha do instalador já aplicada (App.ApplyInstallerStartupChoice).</summary>
+    public string? InstallerChoiceApplied { get; init; }
     public int WeatherIntervalMin { get; init; } = 15;
     public int DeviceIntervalMin { get; init; } = 1;
     public bool Notifications { get; init; } = true;

@@ -44,6 +44,8 @@ public sealed class ClimateService : IDisposable
     private EngineResult? _lastResult;
     private string? _accountError;
     private DateTimeOffset? _updatedAt;
+    private volatile StateMessage _lastState;
+    private long _stateVersion;
 
     public ClimateService(SettingsStore settings, ITokenStore tokens, PresenceMonitor presence)
     {
@@ -58,9 +60,10 @@ public sealed class ClimateService : IDisposable
         _history = new HistoryStore(AppPaths.History);
         _presence.Changed += Kick;
         RebuildEngine();
+        _lastState = Snapshot();
     }
 
-    public event Action<string>? StateChanged;
+    public event Action<StateMessage>? StateChanged;
     public event Action<string, string>? Notify;
 
     public static string VersionLabel => VersionInfo.Current;
@@ -102,6 +105,8 @@ public sealed class ClimateService : IDisposable
                 {
                     _weatherNow = await _weather.GetAsync(city.Latitude, city.Longitude, ct);
                     _history.RecordOutside(now, _weatherNow.TempC);
+                    // Publica já: a leitura dos aparelhos abaixo pode levar dezenas de segundos.
+                    Publish();
                     changed = true;
                 }
                 catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
@@ -413,6 +418,7 @@ public sealed class ClimateService : IDisposable
             _readings.Clear();
             _nextDevicePoll = DateTimeOffset.MinValue;
             _accountError = null;
+            Publish();
             Kick();
             if (!gravou)
                 return (true, "Conta conectada, mas o Windows não deixou gravar as credenciais neste PC. Elas valem até fechar o app; depois será preciso conectar de novo.");
@@ -518,7 +524,13 @@ public sealed class ClimateService : IDisposable
     private string NameOf(string deviceId) => _devices.FirstOrDefault(d => d.Id == deviceId)?.Name ?? deviceId;
 
     /// <summary>Chamar só com a trava do ciclo adquirida.</summary>
-    private void Publish() => StateChanged?.Invoke(BuildState());
+    private void Publish()
+    {
+        _lastState = Snapshot();
+        StateChanged?.Invoke(_lastState);
+    }
+
+    private StateMessage Snapshot() => new(Interlocked.Increment(ref _stateVersion), BuildState());
 
     public async Task RepublishAsync()
     {
@@ -527,10 +539,12 @@ public sealed class ClimateService : IDisposable
         finally { _gate.Release(); }
     }
 
-    public async Task<string> BuildStateAsync()
+    /// <summary>Estado para uma janela que acabou de abrir; com o ciclo em andamento, o último publicado.</summary>
+    public async Task<StateMessage> CurrentStateAsync()
     {
-        await _gate.WaitAsync();
-        try { return BuildState(); }
+        // O ciclo segura a trava durante as chamadas à Electrolux; a janela não pode esperar por elas.
+        if (!await _gate.WaitAsync(0)) return _lastState;
+        try { return _lastState = Snapshot(); }
         finally { _gate.Release(); }
     }
 

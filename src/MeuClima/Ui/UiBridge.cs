@@ -20,7 +20,7 @@ public sealed class UiBridge(ClimateService climate, Action<string?> openCentral
         switch (type)
         {
             case "ready":
-                source.Post("state", await climate.BuildStateAsync());
+                source.PostState(await climate.CurrentStateAsync());
                 break;
             case "command":
                 if (ParseCommand(m.GetProperty("command")) is { } cmd) await climate.UserCommandAsync(S("deviceId"), cmd);
@@ -84,6 +84,7 @@ public sealed class UiBridge(ClimateService climate, Action<string?> openCentral
                     WeatherIntervalMin = Int(p, "weatherIntervalMin") ?? s.WeatherIntervalMin,
                     DeviceIntervalMin = Int(p, "deviceIntervalMin") ?? s.DeviceIntervalMin,
                     Notifications = Bool(p, "notifications") ?? s.Notifications,
+                    CheckUpdates = Bool(p, "checkUpdates") ?? s.CheckUpdates,
                     AverageWatts = Dbl(p, "averageWatts") ?? s.AverageWatts,
                     TariffPerKwh = Dbl(p, "tariffPerKwh") ?? s.TariffPerKwh,
                     PcDeviceId = p.TryGetProperty("pcDeviceId", out var pc) ? pc.GetString() : s.PcDeviceId,

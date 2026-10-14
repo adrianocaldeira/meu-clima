@@ -40,6 +40,17 @@ Pacotes NuGet embutidos no executável. Cada pacote declara a própria licença;
 | [SQLitePCLRaw](https://github.com/ericsink/SQLitePCL.raw) (dependência do Microsoft.Data.Sqlite) | Ponte nativa para o SQLite | Apache-2.0 |
 | [SQLite](https://sqlite.org/) (via SQLitePCLRaw) | Motor do banco | Domínio público |
 
+## Fontes tipográficas
+
+Embutidas no app (`src/MeuClima/Web/fonts/`), subconjuntos latinos, sob a
+[SIL Open Font License 1.1](https://openfontlicense.org/):
+
+| Fonte | Autor |
+|---|---|
+| [Sora](https://github.com/sora-xor/sora-font) | Sora Project Authors |
+| [Figtree](https://github.com/erikdkennedy/figtree) | Erik Kennedy |
+| [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) | JetBrains |
+
 O ícone da bandeja usa o `NotifyIcon` do próprio Windows Forms, sem biblioteca extra.
 
 O **WebView2 Runtime** (Microsoft Edge) não é distribuído com o app: usa-se o runtime Evergreen

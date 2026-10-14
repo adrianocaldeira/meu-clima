@@ -52,7 +52,7 @@ com a API da Electrolux e com o Open-Meteo.
 | | | |
 |---|---|---|
 | 🧊 **Controle rápido** pela bandeja: ligar, desligar, temperatura, modo, ventilação e timer, em todos os aparelhos da conta | 🌤️ **Clima externo** via [Open-Meteo](https://open-meteo.com/): agora e previsão | 🤖 **6 regras automáticas** que você liga, desliga e configura |
-| 📊 **Insights**: horas ligado, energia estimada, tempo para esfriar, gráfico fora × dentro | 🪟 **Inicia com o Windows** (vem ligado; desligue quando quiser) | 🔄 **Atualização automática** com verificação de integridade |
+| 📊 **Insights**: horas ligado, energia estimada, tempo para esfriar, gráfico fora × dentro | 🪟 **Inicia com o Windows** (você escolhe ao instalar) | 🔄 **Atualização automática** com verificação de integridade |
 | 🇧🇷 **100% em português** · tema claro, escuro ou do sistema | 🔒 **Credenciais só no seu PC**, protegidas pelo Windows (DPAPI) | 📦 **Single-file `.exe`** self-contained |
 
 ### Regras automáticas
@@ -73,7 +73,7 @@ Detalhes e limites de cada uma na [Wiki → Regras](https://github.com/adrianoca
 
 ### Opção 1 — Instalador (recomendado)
 
-Baixe `MeuClima-Setup-vX.Y.Z.exe` na [página de releases](https://github.com/adrianocaldeira/meu-clima/releases/latest) e execute. Não precisa de administrador. No fim, marque **"Executar Meu Clima"**. O início com o Windows vem ligado; desligue em **Ajustes** ou no menu do ícone da bandeja.
+Baixe `MeuClima-Setup-vX.Y.Z.exe` na [página de releases](https://github.com/adrianocaldeira/meu-clima/releases/latest) e execute. Não precisa de administrador. No fim, marque **"Executar Meu Clima"**. O instalador pergunta se o app deve iniciar com o Windows (vem marcado); mude depois em **Ajustes** ou no menu do ícone da bandeja.
 
 ### Opção 2 — Portable (sem instalar)
 
@@ -122,7 +122,7 @@ O Meu Clima usa a API oficial com **as suas** credenciais. Ninguém além de voc
 3. **Revise as regras.** Ao terminar a configuração, o app cria as seis regras já ligadas. Desligue as
    que não servem para a sua rotina e ajuste os valores das outras.
 4. **Veja os insights** depois de alguns dias de uso.
-5. **Deixe "Iniciar com o Windows" ligado** (vem assim) se quiser as regras sempre ativas quando você estiver no PC.
+5. **Deixe "Iniciar com o Windows" ligado** se quiser as regras sempre ativas quando você estiver no PC.
 
 ## 🧱 Stack técnica
 
@@ -157,6 +157,28 @@ Bug, ideia ou PR é bem-vindo. Leia [CONTRIBUTING.md](CONTRIBUTING.md) pra setup
 ## 🔒 Segurança
 
 Reportar vulnerabilidade: ver [SECURITY.md](SECURITY.md).
+
+## 🛡️ Privacidade
+
+O Meu Clima não coleta dados de uso. Ele só fala com a Electrolux (sua conta), com o Open-Meteo
+(coordenadas da cidade que você escolheu) e com o GitHub (procurar versão nova, desligável em
+**Ajustes**). Telas e fontes vêm de dentro do app. Detalhes em [PRIVACIDADE.md](PRIVACIDADE.md).
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/).
+
+As versões assinadas são compiladas pelo GitHub Actions a partir deste repositório
+([`release.yml`](.github/workflows/release.yml)), e cada assinatura é aprovada manualmente.
+
+| Role | Quem |
+|---|---|
+| Committers and reviewers (commit sem revisão adicional; revisam pull requests de terceiros) | [@adrianocaldeira](https://github.com/adrianocaldeira) |
+| Approvers (aprovam cada assinatura) | [@adrianocaldeira](https://github.com/adrianocaldeira) |
+
+Privacidade: o programa não transfere informação para outros sistemas além dos descritos em
+[PRIVACIDADE.md](PRIVACIDADE.md), todos acionados pelo uso que você faz do app.
 
 ## 📄 Licença
 

@@ -10,6 +10,11 @@
     <Version>0.1.0</Version>
     <AssemblyVersion>$(Version).0</AssemblyVersion>
     <FileVersion>$(Version).0</FileVersion>
+    <!-- Sem o hash do commit: a SignPath confere a versão do produto do .exe assinado. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Product>Meu Clima</Product>
+    <Company>Adriano Caldeira</Company>
+    <Copyright>Copyright (c) 2026 Adriano Caldeira</Copyright>
   </PropertyGroup>
 
 </Project>

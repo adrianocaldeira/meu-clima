@@ -470,13 +470,14 @@
     if (u.downloading) upd = `<button class="btn" disabled>Baixando a versão ${esc(u.version || '')}…</button>`;
     else if (u.available) upd = `<button class="btn primary" data-act="install" data-k="install">Instalar versão ${esc(u.version || '')}</button>`;
     else upd = `<button class="btn" data-act="checkUpdate" data-k="check"${updateChecking ? ' disabled' : ''}>${updateChecking ? 'Verificando…' : 'Verificar atualização'}</button>`;
-    const updText = u.downloading ? 'O Meu Clima reinicia sozinho ao terminar.' : u.available ? `A versão ${esc(u.version || '')} está disponível.` : updateChecked ? 'Você já está na versão mais recente.' : 'O Meu Clima também verifica sozinho ao iniciar.';
+    const updText = u.downloading ? 'O Meu Clima reinicia sozinho ao terminar.' : u.available ? `A versão ${esc(u.version || '')} está disponível.` : updateChecked ? 'Você já está na versão mais recente.' : s.checkUpdates === false ? 'A busca automática está desligada.' : 'O Meu Clima também verifica sozinho ao iniciar.';
     const numIn = (k, label, unit, min, max, step) => `<span class="unit"><input class="inp num" type="number" inputmode="decimal" aria-label="${label}" data-setnum="${k}" data-k="sn:${k}" min="${min}" max="${max}" step="${step}" value="${esc(s[k])}"><em>${unit}</em></span>`;
     return `${accountAlert()}<h2>Ajustes</h2>
       <div class="card stack" style="gap:0"><h3>Geral</h3>
         <div class="set"><div><b>Iniciar com o Windows</b><span>Abre na bandeja ao entrar na sua conta do Windows.</span></div><button class="pwr" data-setb="startWithWindows" data-k="sb:sw" aria-pressed="${!!s.startWithWindows}" aria-label="Iniciar com o Windows"></button></div>
         <div class="set"><div><b>Tema</b><span>Sistema acompanha o claro ou escuro do Windows.</span></div><div class="seg inline" role="group" aria-label="Tema">${[['system', 'Sistema'], ['light', 'Claro'], ['dark', 'Escuro']].map(([v, t]) =>
           `<button data-settheme="${v}" data-k="theme:${v}" aria-pressed="${(s.theme || 'system') === v}">${t}</button>`).join('')}</div></div>
+        <div class="set"><div><b>Procurar atualizações automaticamente</b><span>Consulta o GitHub ao iniciar e a cada 30 min. Desligado, só quando você pedir.</span></div><button class="pwr" data-setb="checkUpdates" data-k="sb:cu" aria-pressed="${s.checkUpdates !== false}" aria-label="Procurar atualizações automaticamente"></button></div>
         <div class="set"><div><b>Avisos do Windows</b><span>Regra começou, aparelho caiu, janela aberta, fora mais fresco.</span></div><button class="pwr" data-setb="notifications" data-k="sb:nt" aria-pressed="${!!s.notifications}" aria-label="Avisos do Windows"></button></div>
         <div class="set"><div><b>Atualizar o clima de fora</b><span>No Brasil a fonte muda de hora em hora.</span></div>${segSet('weatherIntervalMin', [15, 30, 60], s.weatherIntervalMin, 'Intervalo do clima')}</div>
         <div class="set"><div><b>Atualizar os aparelhos</b><span>Lê o estado na nuvem da Electrolux.</span></div>${segSet('deviceIntervalMin', [1, 2, 5], s.deviceIntervalMin, 'Intervalo dos aparelhos')}</div>
@@ -557,6 +558,8 @@
     if (ds.go) return go(ds.go);
     if (ds.days) { const d = +ds.days; if (d !== insightsDays) { insightsDays = d; insights = null; render(); requestInsights(); } return; }
     if (ds.set) return saveSetting({ [ds.set]: +ds.v });
+    // checkUpdates ausente conta como ligado (o botão mostra assim).
+    if (ds.setb === 'checkUpdates') return saveSetting({ checkUpdates: state.settings.checkUpdates === false });
     if (ds.setb) return saveSetting({ [ds.setb]: !state.settings[ds.setb] });
     if (ds.settheme) {
       const root = document.documentElement;

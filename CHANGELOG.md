@@ -6,6 +6,23 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+### Adicionado
+- **Procurar atualizações automaticamente** em Ajustes: desligado, o app só consulta o GitHub
+  quando você pede.
+- Política de privacidade (`PRIVACIDADE.md`), mostrada pelo instalador antes de instalar.
+
+### Mudado
+- O instalador pergunta se o app deve iniciar com o Windows (vem marcado). A versão portable
+  começa com essa opção desligada.
+- As fontes das telas vêm de dentro do app; nada é carregado de servidores externos ao abrir
+  as janelas.
+
+### Corrigido
+- A janela ficava em "Carregando…" até terminar a primeira leitura de todos os aparelhos; agora
+  abre na hora com o último estado e mostra o clima assim que ele chega.
+- Na abertura, o painel mostra "Lendo os seus aparelhos…" em vez de "Nenhum aparelho encontrado"
+  enquanto a primeira leitura não termina.
+
 ## [0.1.0] — 2026
 
 ### Adicionado

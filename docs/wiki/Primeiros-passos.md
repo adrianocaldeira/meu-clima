@@ -76,8 +76,9 @@ Explicação de todas em [[Regras]].
 
 ## 7. Iniciar com o Windows
 
-**"Iniciar com o Windows"** vem ligado, para as regras estarem ativas sempre que você fizer login.
-Desligue em **Ajustes** ou no menu do ícone da bandeja. Lembre: **sem login no Windows, nenhuma
+**"Iniciar com o Windows"** é escolhido no instalador (vem marcado) e deixa as regras ativas sempre
+que você fizer login. Na versão portable ele começa desligado. Mude em **Ajustes** ou no menu do
+ícone da bandeja. Lembre: **sem login no Windows, nenhuma
 regra roda.**
 
 ## 8. Tema

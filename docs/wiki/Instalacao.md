@@ -28,9 +28,10 @@ Três caminhos. Escolha o que mais combina com você.
    - Criar ícone na área de trabalho (opcional)
 4. Na última tela, deixe marcado **"Executar Meu Clima"**. O ícone aparece na bandeja (perto do relógio).
 
-O instalador **não** configura o início com o Windows: quem faz isso é o próprio app. Ele vem ligado
-na primeira execução. Para desligar, use a central → **Ajustes** → **Iniciar com o Windows**, ou o
-menu do ícone da bandeja.
+O instalador pergunta se o Meu Clima deve **iniciar com o Windows** (vem marcado) e mostra antes a
+[política de privacidade](https://github.com/adrianocaldeira/meu-clima/blob/main/PRIVACIDADE.md).
+Para mudar depois, use a central → **Ajustes** → **Iniciar com o Windows**, ou o menu do ícone da
+bandeja.
 
 > [!IMPORTANT]
 > Na primeira execução o **Windows SmartScreen** pode bloquear (o `.exe` não tem assinatura comercial). Clique em **"Mais informações" → "Executar assim mesmo"**. Veja [[FAQ]].
@@ -45,7 +46,7 @@ remove a entrada de início com o Windows.
 ## 2. Portable (sem instalar)
 
 1. Baixe `MeuClima.exe` na [página de releases](https://github.com/adrianocaldeira/meu-clima/releases/latest)
-2. Salve numa pasta fixa ("Iniciar com o Windows" vem ligado e o Windows vai procurar o `.exe` nesse caminho)
+2. Salve numa pasta fixa (se ligar "Iniciar com o Windows" em **Ajustes**, o Windows procura o `.exe` nesse caminho)
 3. Execute com duplo clique
 
 Desvantagens:

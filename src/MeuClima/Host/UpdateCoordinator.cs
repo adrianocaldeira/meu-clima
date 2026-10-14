@@ -12,8 +12,9 @@ public sealed class UpdateCoordinator : IDisposable
     private bool _downloading;
     private double? _percent;
 
-    public UpdateCoordinator(Action<string, string> notify, Func<Task> republish, Action shutdown)
+    public UpdateCoordinator(Action<string, string> notify, Func<Task> republish, Action shutdown, Func<bool> autoCheck)
     {
+        _checker.Enabled = autoCheck;
         _notify = notify;
         _republish = republish;
         _shutdown = shutdown;

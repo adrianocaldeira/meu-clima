@@ -46,6 +46,9 @@ public sealed class BackgroundUpdateChecker : IDisposable
 
     public bool NotifyOncePerVersion { get; set; } = true;
 
+    /// <summary>Verificação agendada ligada; a manual (<see cref="CheckNowAsync"/>) roda sempre.</summary>
+    public Func<bool> Enabled { get; set; } = () => true;
+
     public BackgroundUpdateChecker(
         Func<UpdateService>? serviceFactory = null,
         UpdateLogger? logger = null,
@@ -83,7 +86,7 @@ public sealed class BackgroundUpdateChecker : IDisposable
             using var timer = new PeriodicTimer(_interval);
             do
             {
-                if (!Paused) await CheckOnceAsync(ct);
+                if (!Paused && Enabled()) await CheckOnceAsync(ct);
             }
             while (await timer.WaitForNextTickAsync(ct));
         }

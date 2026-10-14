@@ -131,7 +131,7 @@
       activeRules: [],
       rules: [],
       settings: { startWithWindows: true, weatherIntervalMin: 15, deviceIntervalMin: 1, notifications: true, averageWatts: 800, tariffPerKwh: 0.85,
-        pcDeviceId: variant === 'setup' ? null : 'dev-escritorio', theme: 'system' },
+        pcDeviceId: variant === 'setup' ? null : 'dev-escritorio', theme: 'system', checkUpdates: true },
       version: '0.1.0',
       update: { available: false, version: null, downloading: false },
     };
