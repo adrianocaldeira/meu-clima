@@ -6,6 +6,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+## [0.1.0] — 2026
+
 ### Adicionado
 - **App de bandeja do Windows**: o clique no ícone abre o painel com o clima, as regras em execução e
   o controle rápido; o menu do ícone abre a central, liga ou desliga o início com o Windows,
@@ -32,4 +34,5 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
   portable abre a página da release.
 - Instalador (Inno Setup), sem exigir administrador.
 
-[Não lançado]: https://github.com/adrianocaldeira/meu-clima/commits/main
+[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.1.0
