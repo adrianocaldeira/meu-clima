@@ -6,6 +6,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+## [0.2.1] — 2026
+
 ### Mudado
 - "Conforto" reage mais rápido ao calor forte: com dentro 2 °C ou mais acima da máxima, volta ao frio
   (ou entra no turbo) em 2 min, não em 5. Enquanto espera, o painel diz desde quando passou da máxima
@@ -105,7 +107,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
   portable abre a página da release.
 - Instalador (Inno Setup), sem exigir administrador.
 
-[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.2.0...HEAD
+[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.1
 [0.2.0]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.0
 [0.1.1]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.1.1
 [0.1.0]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.1.0
