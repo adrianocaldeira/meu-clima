@@ -56,12 +56,12 @@ public sealed class UiBridge(ClimateService climate, Action<string?> openCentral
                     Log.Write($"Regra recusada: {ex.Message}");
                     rule = null;
                 }
-                if (rule is null)
+                if (rule is null || RuleMigration.IsLegacy(rule))
                 {
                     Toast(source, "error", "A regra não foi salva: algum valor está em formato inválido.");
                     break;
                 }
-                if (rule.GetType().GetProperty("DeviceId")?.GetValue(rule) is null && rule is not ForaMaisFrescoConfig)
+                if (rule.GetType().GetProperty("DeviceId")?.GetValue(rule) is null)
                 {
                     Toast(source, "error", "A regra não foi salva: escolha o aparelho.");
                     break;

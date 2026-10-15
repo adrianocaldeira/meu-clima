@@ -21,9 +21,11 @@ internal static class TestKit
         new(temp, temp, 60, hourly.Select(h => new HourlyPoint(h.Time, h.Temp)).ToList(), At(12));
 
     public static RuleContext Ctx(DateTimeOffset now, double? outside, DeviceSnapshot? dev = null,
-        PresenceState? presence = null, IHistoryReader? history = null, WeatherSnapshot? weather = null) =>
+        PresenceState? presence = null, IHistoryReader? history = null, WeatherSnapshot? weather = null,
+        DateTimeOffset? readAt = null) =>
         new(now, Brt, weather ?? (outside is { } o ? Clima(o) : null),
-            dev is null ? new Dictionary<string, DeviceSnapshot>() : new Dictionary<string, DeviceSnapshot> { [dev.Id] = dev },
+            // Sem readAt, cada avaliação simula uma leitura nova do aparelho.
+            dev is null ? new Dictionary<string, DeviceSnapshot>() : new Dictionary<string, DeviceSnapshot> { [dev.Id] = dev with { ReadAt = readAt ?? now } },
             presence ?? PresenceState.Present, history ?? new FakeHistory());
 
     public static string Fixture(string name) =>

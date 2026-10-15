@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 
 namespace MeuClima.Core.Weather;
 
-public sealed record HourlyPoint(DateTimeOffset Time, double TempC);
+public sealed record HourlyPoint(DateTimeOffset Time, double TempC, double? ApparentC = null);
 
 public sealed record WeatherSnapshot(
     double TempC,
@@ -16,6 +16,11 @@ public sealed record WeatherSnapshot(
     public HourlyPoint? PeakOn(DateOnly day, TimeZoneInfo tz) =>
         Hourly.Where(h => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(h.Time, tz).DateTime) == day)
               .MaxBy(h => h.TempC);
+
+    /// <summary>Maior sensação térmica prevista no dia local (sem sensação, usa a temperatura).</summary>
+    public double? MaxApparentOn(DateOnly day, TimeZoneInfo tz) =>
+        Hourly.Where(h => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(h.Time, tz).DateTime) == day)
+              .Select(h => (double?)(h.ApparentC ?? h.TempC)).Max();
 }
 
 public sealed record Place(string Name, string Region, double Latitude, double Longitude, string TimeZone);
@@ -26,7 +31,7 @@ public sealed class OpenMeteoClient(HttpClient http, TimeProvider clock)
     public async Task<WeatherSnapshot> GetAsync(double lat, double lon, CancellationToken ct = default)
     {
         var url = string.Create(CultureInfo.InvariantCulture,
-            $"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature&hourly=temperature_2m&forecast_days=2&timezone=UTC");
+            $"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature&hourly=temperature_2m,apparent_temperature&forecast_days=2&timezone=UTC");
         var json = JsonNode.Parse(await http.GetStringAsync(url, ct))!;
         return Parse(json, clock.GetUtcNow());
     }
@@ -51,6 +56,7 @@ public sealed class OpenMeteoClient(HttpClient http, TimeProvider clock)
         var cur = json["current"]!;
         var times = json["hourly"]!["time"]!.AsArray();
         var temps = json["hourly"]!["temperature_2m"]!.AsArray();
+        var sente = json["hourly"]!["apparent_temperature"] as JsonArray;
         var hourly = new List<HourlyPoint>(times.Count);
         for (var i = 0; i < times.Count; i++)
         {
@@ -58,7 +64,8 @@ public sealed class OpenMeteoClient(HttpClient http, TimeProvider clock)
             // timezone=UTC na URL: horários vêm sem offset e são UTC.
             var t = DateTime.Parse(times[i]!.GetValue<string>(), CultureInfo.InvariantCulture,
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
-            hourly.Add(new HourlyPoint(new DateTimeOffset(t, TimeSpan.Zero), temps[i]!.GetValue<double>()));
+            var aparente = sente is not null && i < sente.Count ? sente[i]?.GetValue<double>() : null;
+            hourly.Add(new HourlyPoint(new DateTimeOffset(t, TimeSpan.Zero), temps[i]!.GetValue<double>(), aparente));
         }
         return new WeatherSnapshot(
             cur["temperature_2m"]!.GetValue<double>(),

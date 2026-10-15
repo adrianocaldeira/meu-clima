@@ -4,8 +4,8 @@ using MeuClima.Core.Weather;
 
 namespace MeuClima.Core.Rules;
 
-/// <summary>Ausência do usuário no PC (tela bloqueada ou sem uso de teclado/mouse).</summary>
-public sealed record PresenceState(bool Away, TimeSpan AwayFor)
+/// <summary>Ausência do usuário no PC: tela bloqueada (<paramref name="Locked"/>) ou sem uso de teclado/mouse.</summary>
+public sealed record PresenceState(bool Away, TimeSpan AwayFor, bool Locked = false)
 {
     public static readonly PresenceState Present = new(false, TimeSpan.Zero);
 }
@@ -23,9 +23,13 @@ public sealed record RuleContext(
     WeatherSnapshot? Weather,
     IReadOnlyDictionary<string, DeviceSnapshot> Devices,
     PresenceState Presence,
-    IHistoryReader History)
+    IHistoryReader History,
+    Func<string, bool>? Blocked = null)
 {
     public DateTime LocalNow => TimeZoneInfo.ConvertTime(Now, TimeZone).DateTime;
+
+    /// <summary>Aparelho em pausa manual ou já reivindicado por regra de prioridade maior neste ciclo.</summary>
+    public bool IsBlocked(string deviceId) => Blocked?.Invoke(deviceId) ?? false;
 }
 
 public sealed record Notification(string Title, string Body);
@@ -43,6 +47,15 @@ public sealed class RuleOutput
     public RuleOutput Claim(string deviceId, params DeviceCommand[] desired)
     {
         Claims[deviceId] = [.. desired];
+        return this;
+    }
+
+    /// <summary>Situação sem comando: de olho no aparelho ou em espera (ausência, agenda). Não bloqueia ninguém.</summary>
+    public Dictionary<string, (RuleStatus Status, bool Waiting)> Observed { get; } = [];
+
+    public RuleOutput Observe(string deviceId, RuleStatus status, bool waiting = false)
+    {
+        Observed[deviceId] = (status, waiting);
         return this;
     }
 
@@ -69,11 +82,12 @@ public sealed record Schedule(DayOfWeek[] Days, TimeOnly Start, TimeOnly End)
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "tipo")]
-[JsonDerivedType(typeof(EsfriarRapidoConfig), "esfriar-rapido")]
+[JsonDerivedType(typeof(ConfortoConfig), "conforto")]
 [JsonDerivedType(typeof(SaiDoPcConfig), "sai-do-pc")]
-[JsonDerivedType(typeof(AntesDoPicoConfig), "antes-do-pico")]
 [JsonDerivedType(typeof(JanelaAbertaConfig), "janela-aberta")]
 [JsonDerivedType(typeof(ModoNoiteConfig), "modo-noite")]
+[JsonDerivedType(typeof(EsfriarRapidoConfig), "esfriar-rapido")]
+[JsonDerivedType(typeof(AntesDoPicoConfig), "antes-do-pico")]
 [JsonDerivedType(typeof(ForaMaisFrescoConfig), "fora-mais-fresco")]
 public abstract record RuleConfig
 {
@@ -81,6 +95,22 @@ public abstract record RuleConfig
     public bool Enabled { get; init; } = true;
 }
 
+/// <summary>Mantém o ambiente na faixa gastando o mínimo: Frio econômico no topo, ventilar no piso, turbo só no calor forte.</summary>
+public sealed record ConfortoConfig(
+    string DeviceId,
+    int MinC = 23,
+    int MaxC = 24,
+    int TurboFromC = 26,
+    int MaxTurboMin = 30,
+    bool FanAtMin = true,
+    bool AllowHeat = false,
+    double PreCoolApparentC = 30,
+    int PreCoolLeadMin = 30,
+    double CoolerOutsideC = 3,
+    bool RequirePresence = true,
+    Schedule? Schedule = null) : RuleConfig;
+
+/// <summary>Formato anterior à v0.2, só para converter settings antigos (<see cref="RuleMigration"/>).</summary>
 public sealed record EsfriarRapidoConfig(
     string DeviceId,
     double TriggerOutsideC = 24,
@@ -98,8 +128,12 @@ public sealed record SaiDoPcConfig(
     string DeviceId,
     int EcoAfterMin = 20,
     int EcoTargetC = 26,
-    int OffAfterMin = 60) : RuleConfig;
+    int OffAfterMin = 60,
+    bool OffOnLock = true,
+    int OffOnLockMin = 0,
+    bool RestoreOnReturn = false) : RuleConfig;
 
+/// <summary>Formato anterior à v0.2, só para converter settings antigos.</summary>
 public sealed record AntesDoPicoConfig(
     string DeviceId,
     double ForecastThresholdC = 32,
@@ -123,6 +157,7 @@ public sealed record ModoNoiteConfig(
     int MaxTargetC = 28,
     TimeOnly? DailyStart = null) : RuleConfig;
 
+/// <summary>Formato anterior à v0.2, só para converter settings antigos.</summary>
 public sealed record ForaMaisFrescoConfig(
     double DeltaC = 3,
     int CooldownMin = 180,
@@ -132,4 +167,42 @@ public sealed record ForaMaisFrescoConfig(
     private bool Unset => From == default && To == default;
     public TimeOnly FromOrDefault => Unset ? new TimeOnly(7, 0) : From;
     public TimeOnly ToOrDefault => Unset ? new TimeOnly(22, 0) : To;
+}
+
+/// <summary>Converte as regras "Esfriar rápido", "Antes do pico" e "Fora mais fresco" num Conforto por aparelho.</summary>
+public static class RuleMigration
+{
+    public static bool IsLegacy(RuleConfig c) => c is EsfriarRapidoConfig or AntesDoPicoConfig or ForaMaisFrescoConfig;
+
+    /// <summary>Lista convertida, ou null quando não há nada a converter.</summary>
+    public static List<RuleConfig>? Migrate(IReadOnlyList<RuleConfig> rules)
+    {
+        if (!rules.Any(IsLegacy)) return null;
+        var result = new List<RuleConfig>();
+        foreach (var c in rules)
+        {
+            if (!IsLegacy(c)) { result.Add(c); continue; }
+            var deviceId = DeviceOf(c);
+            if (deviceId is null || rules.Concat(result).OfType<ConfortoConfig>().Any(x => x.DeviceId == deviceId)) continue;
+            var legado = rules.Where(r => IsLegacy(r) && DeviceOf(r) == deviceId).ToList();
+            var esfriar = legado.OfType<EsfriarRapidoConfig>().FirstOrDefault();
+            var pico = legado.OfType<AntesDoPicoConfig>().FirstOrDefault();
+            var fora = rules.OfType<ForaMaisFrescoConfig>().FirstOrDefault();
+            // A faixa vem do alvo de manutenção do Esfriar rápido; quem só tinha o Antes do pico (um
+            // pré-resfriamento por dia) não ganha controle o dia todo. O Conforto não tem chave para o
+            // aviso de fora mais fresco: desligado, vai para o limite (15 °C), que na prática o cala.
+            var max = Math.Clamp(esfriar?.Phase2TargetC ?? 24, 17, 30);
+            result.Add(new ConfortoConfig(deviceId,
+                MinC: max - 1,
+                MaxC: max,
+                TurboFromC: max + 2,
+                CoolerOutsideC: fora is null ? 3 : fora.Enabled ? fora.DeltaC : 15,
+                RequirePresence: esfriar?.RequirePresence ?? pico?.RequirePresence ?? true,
+                Schedule: esfriar?.Schedule) { Enabled = esfriar?.Enabled ?? pico?.Enabled ?? false });
+        }
+        return result;
+    }
+
+    private static string? DeviceOf(RuleConfig c) =>
+        c switch { EsfriarRapidoConfig e => e.DeviceId, AntesDoPicoConfig a => a.DeviceId, _ => null };
 }

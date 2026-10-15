@@ -19,6 +19,8 @@ public partial class App : Application
     private UiBridge? _bridge;
     private FlyoutWindow? _flyout;
     private CentralWindow? _central;
+    // A central foi aberta pela bandeja: ao fechá-la, a bandeja volta.
+    private bool _voltarParaBandeja;
     private UpdateCoordinator? _updates;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -62,7 +64,8 @@ public partial class App : Application
 
         _presence = new PresenceMonitor();
         _climate = new ClimateService(settings, new DpapiTokenStore(), _presence);
-        _bridge = new UiBridge(_climate, OpenCentral, () => _flyout?.Hide(), Quit);
+        // Só a bandeja pede a central pela ponte; a central nunca envia openCentral.
+        _bridge = new UiBridge(_climate, tab => OpenCentral(tab, daBandeja: true), () => _flyout?.Hide(), Quit);
         _tray = new Tray(ToggleFlyout, OpenCentral, Quit);
         _tray.AutostartChanged += on => _ = _climate.UpdateSettingsAsync(s => s with { StartWithWindows = on });
 
@@ -145,14 +148,23 @@ public partial class App : Application
         _flyout.Toggle();
     }
 
-    private void OpenCentral(string? tab)
+    private void OpenCentral(string? tab) => OpenCentral(tab, daBandeja: false);
+
+    private void OpenCentral(string? tab, bool daBandeja)
     {
         _flyout?.Hide();
         if (_central is null)
         {
             _central = new CentralWindow();
             _central.Message += _bridge!.HandleAsync;
+            _central.ClosedByUser += () =>
+            {
+                if (!_voltarParaBandeja) return;
+                _voltarParaBandeja = false;
+                if (_flyout is { IsVisible: false }) _flyout.Toggle();
+            };
         }
+        _voltarParaBandeja = daBandeja;
         _central.ShowFront(tab);
     }
 

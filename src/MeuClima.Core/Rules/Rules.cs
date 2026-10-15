@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using MeuClima.Core.Devices;
 using static MeuClima.Core.Devices.DeviceCommand;
@@ -12,6 +13,9 @@ public interface IRule
     RuleOutput Evaluate(RuleContext ctx);
     string SaveState();
     void LoadState(string json);
+
+    /// <summary>O usuário mexeu no aparelho (controle, app do celular ou bandeja).</summary>
+    void OnManualChange(string deviceId);
 }
 
 /// <summary>Regra com estado tipado, persistido em JSON para sobreviver a reinício do app.</summary>
@@ -27,87 +31,225 @@ public abstract class Rule<TConfig, TState>(TConfig config) : IRule
     public abstract RuleOutput Evaluate(RuleContext ctx);
     public string SaveState() => JsonSerializer.Serialize(State);
     public void LoadState(string json) => State = JsonSerializer.Deserialize<TState>(json) ?? new();
+    public virtual void OnManualChange(string deviceId) { }
 
-    protected static string DeviceName(RuleContext ctx, string id) =>
-        ctx.Devices.TryGetValue(id, out var d) ? d.Name : id;
+    protected static string Hm(RuleContext ctx, DateTimeOffset t) =>
+        TimeZoneInfo.ConvertTime(t, ctx.TimeZone).ToString("HH:mm", CultureInfo.InvariantCulture);
 }
 
 public static class RulePriority
 {
-    public const int JanelaAberta = 50, ModoNoite = 40, SaiDoPc = 30, EsfriarRapido = 20, AntesDoPico = 10, Aviso = 0;
+    public const int JanelaAberta = 50, ModoNoite = 40, SaiDoPc = 30, Conforto = 20;
 }
 
-public enum EsfriarFase { Parada, Fase1, Fase2 }
+public enum ConfortoFase { Parado, Turbo, Manter, Ventilar, Aquecer }
 
-public sealed class EsfriarRapidoState
+public sealed class ConfortoState
 {
-    public EsfriarFase Fase { get; set; }
-    public DateTimeOffset? Fase1Desde { get; set; }
+    public ConfortoFase Fase { get; set; }
+    public DateTimeOffset? TurboDesde { get; set; }
+    /// <summary>Turbo bateu o teto sem chegar à máxima: só volta depois que dentro entrar na faixa.</summary>
+    public bool TurboEsgotado { get; set; }
+    public DateTimeOffset? AcimaDesde { get; set; }
+    public DateTimeOffset? QuenteDesde { get; set; }
+    public DateTimeOffset? NoPisoDesde { get; set; }
     public DateTimeOffset? AbaixoDesde { get; set; }
-    public int? AmbienteInicial { get; set; }
+    public DateOnly? AntecipouEm { get; set; }
+    public DateTimeOffset? UltimoAvisoFora { get; set; }
+    /// <summary>Saiu do turbo por ausência ou fim da agenda: ainda falta tirar a ventilação do Turbo.</summary>
+    public bool SairDoTurbo { get; set; }
 }
 
-/// <summary>Fora quente: Turbo até dentro chegar ao alvo da fase 1, depois mantém no alvo da fase 2.</summary>
-public sealed class EsfriarRapidoRule(EsfriarRapidoConfig cfg) : Rule<EsfriarRapidoConfig, EsfriarRapidoState>(cfg)
+/// <summary>Mantém dentro entre a mínima e a máxima com o menor gasto: frio econômico, ventilar e turbo só no calor forte.</summary>
+/// <remarks>
+/// O sensor mede graus inteiros e às vezes salta numa leitura só: mudar de fase pede a condição sustentada
+/// por <see cref="Confirmacao"/> (sair do frio para ventilar, <see cref="ConfirmacaoPiso"/>). Nunca usa o modo
+/// Auto, que aquece sozinho quando dentro fica abaixo do alvo.
+/// </remarks>
+public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, ConfortoState>(cfg)
 {
-    public override string Name => "Esfriar rápido";
-    public override int Priority => RulePriority.EsfriarRapido;
+    public static readonly TimeSpan Confirmacao = TimeSpan.FromMinutes(5);
+    public static readonly TimeSpan ConfirmacaoPiso = TimeSpan.FromMinutes(10);
+    public static readonly TimeSpan AvisoForaCarencia = TimeSpan.FromHours(3);
+
+    public override string Name => "Conforto";
+    public override int Priority => RulePriority.Conforto;
+
+    public override void OnManualChange(string deviceId)
+    {
+        if (deviceId == Cfg.DeviceId) Reiniciar();
+    }
+
+    private void Reiniciar() =>
+        State = new ConfortoState { AntecipouEm = State.AntecipouEm, UltimoAvisoFora = State.UltimoAvisoFora };
 
     public override RuleOutput Evaluate(RuleContext ctx)
     {
         var o = new RuleOutput();
         if (!ctx.Devices.TryGetValue(Cfg.DeviceId, out var dev)) return o;
-        if (ctx.Weather is null) return Hold(o, ctx, dev);
-        var fora = ctx.Weather.TempC;
-        var naAgenda = (Cfg.Schedule ?? Schedule.Always).Contains(ctx.LocalNow);
-
-        if (State.Fase != EsfriarFase.Parada)
+        // Aquecimento ligado por você, com "Aquecer" desligado na regra, não é trocado por frio ou ventilar.
+        if (dev.On && dev.Mode == AcMode.Heat && !Cfg.AllowHeat)
         {
-            State.AbaixoDesde = fora < Cfg.StopOutsideC ? State.AbaixoDesde ?? ctx.Now : null;
-            var esfriouLaFora = State.AbaixoDesde is { } desde && ctx.Now - desde >= TimeSpan.FromMinutes(Cfg.StopAfterMin);
-            if (esfriouLaFora || !naAgenda)
-            {
-                State = new();
-                return o;
-            }
+            Reiniciar();
+            return o.Observe(Cfg.DeviceId, new RuleStatus($"{Name} em espera", "Você ligou em Quente. O Conforto não mexe no aquecimento.", null), waiting: true);
         }
-        else if (fora >= Cfg.TriggerOutsideC && naAgenda && Presente(ctx))
+        if (ctx.IsBlocked(Cfg.DeviceId))
         {
-            State.Fase = dev.AmbientC is { } amb && amb <= Cfg.Phase1TargetC ? EsfriarFase.Fase2 : EsfriarFase.Fase1;
-            State.Fase1Desde = ctx.Now;
-            State.AmbienteInicial = dev.AmbientC;
-            o.Notify($"{Name} começou", $"{dev.Name}: fora está {fora:0.#} °C.");
+            // Bloqueado, a fase avançaria sem comando (aviso falso, turbo e antecipação gastos à toa).
+            // Avalia do zero só para mostrar o que faria, e descarta o estado e os avisos.
+            var (antecipou, avisou) = (State.AntecipouEm, State.UltimoAvisoFora);
+            Reiniciar();
+            var previa = Avaliar(o, ctx, dev);
+            previa.Notifications.Clear();
+            previa.Observed.Clear();
+            State = new ConfortoState { AntecipouEm = antecipou, UltimoAvisoFora = avisou };
+            return previa;
         }
-
-        if (State.Fase == EsfriarFase.Fase1)
-        {
-            var estourou = ctx.Now - State.Fase1Desde >= TimeSpan.FromMinutes(Cfg.MaxBoostMin);
-            if (dev.AmbientC is { } amb && amb <= Cfg.Phase1TargetC || estourou)
-                State.Fase = EsfriarFase.Fase2;
-        }
-        return Hold(o, ctx, dev);
+        return Avaliar(o, ctx, dev);
     }
 
-    private bool Presente(RuleContext ctx) => !Cfg.RequirePresence || !ctx.Presence.Away;
-
-    private RuleOutput Hold(RuleOutput o, RuleContext ctx, DeviceSnapshot? dev)
+    private RuleOutput Avaliar(RuleOutput o, RuleContext ctx, DeviceSnapshot dev)
     {
-        if (dev is null || State.Fase == EsfriarFase.Parada || !Presente(ctx)) return o;
-        if (State.Fase == EsfriarFase.Fase1)
+        var naAgenda = (Cfg.Schedule ?? Schedule.Always).Contains(ctx.LocalNow);
+        if (!naAgenda || (Cfg.RequirePresence && ctx.Presence.Away))
+            return Sair(o, dev, naAgenda ? "ninguém no PC" : "fora da agenda");
+        State.SairDoTurbo = false;
+        if (dev.AmbientC is not { } amb) return Reivindicar(o, ctx, dev, null);
+
+        Acompanhar(dev.ReadAt, amb);
+        var antes = State.Fase;
+        var antecipou = false;
+        State.Fase = Proxima(ctx, dev, amb, ref antecipou);
+        if (State.Fase != ConfortoFase.Turbo) State.TurboDesde = null;
+        else State.TurboDesde ??= ctx.Now;
+
+        if (State.Fase != antes && State.Fase == ConfortoFase.Turbo)
+            o.Notify("Conforto: turbo", $"{dev.Name} em {amb} °C. Turbo até {Cfg.MaxC} °C, por no máximo {Cfg.MaxTurboMin} min.");
+        else if (antes == ConfortoFase.Parado && !dev.On && State.Fase == ConfortoFase.Manter)
+            o.Notify("Conforto ligou o ar", antecipou
+                ? $"{dev.Name}: o calor forte chega em até {Cfg.PreCoolLeadMin} min. Frio econômico em {Cfg.MaxC} °C."
+                : $"{dev.Name}: dentro em {amb} °C, acima de {Cfg.MaxC} °C. Frio econômico em {Cfg.MaxC} °C.");
+        AvisarForaMaisFresco(o, ctx, dev, amb);
+        return Reivindicar(o, ctx, dev, amb);
+    }
+
+    /// <summary>Marca desde quando cada condição vale, pelo horário da leitura que a mostrou.</summary>
+    private void Acompanhar(DateTimeOffset leitura, int amb)
+    {
+        State.AcimaDesde = amb > Cfg.MaxC ? State.AcimaDesde ?? leitura : null;
+        State.QuenteDesde = amb >= Cfg.TurboFromC ? State.QuenteDesde ?? leitura : null;
+        State.NoPisoDesde = amb <= Cfg.MinC ? State.NoPisoDesde ?? leitura : null;
+        State.AbaixoDesde = amb < Cfg.MinC ? State.AbaixoDesde ?? leitura : null;
+        if (amb <= Cfg.MaxC) State.TurboEsgotado = false;
+    }
+
+    /// <summary>Ausência ou fim da agenda: solta o aparelho, mas não o deixa em turbo sem prazo.</summary>
+    private RuleOutput Sair(RuleOutput o, DeviceSnapshot dev, string motivo)
+    {
+        var estavaNoTurbo = State.Fase == ConfortoFase.Turbo || State.SairDoTurbo;
+        Reiniciar();
+        State.SairDoTurbo = estavaNoTurbo && dev.On && dev.Fan == FanSpeed.Turbo;
+        if (!State.SairDoTurbo)
+            return o.Observe(Cfg.DeviceId, new RuleStatus($"{Name} em espera",
+                motivo == "ninguém no PC" ? "Você está longe do PC. Volta a agir quando você voltar." : "Fora do horário definido na regra.", null),
+                waiting: true);
+        o.Claim(Cfg.DeviceId, new SetFan(FanSpeed.Auto));
+        o.Status = new RuleStatus(Name, motivo == "ninguém no PC"
+            ? "Você saiu do PC: tirando a ventilação do turbo."
+            : "Fim do horário da regra: tirando a ventilação do turbo.", null);
+        return o;
+    }
+
+    private ConfortoFase Proxima(RuleContext ctx, DeviceSnapshot dev, int amb, ref bool antecipou)
+    {
+        var now = ctx.Now;
+        // Exige uma leitura posterior à que começou a contar: uma leitura isolada que fica parada não confirma.
+        bool Por(DateTimeOffset? desde, TimeSpan t) => desde is { } d && now - d >= t && dev.ReadAt > d;
+        var fase = State.Fase;
+
+        if (fase == ConfortoFase.Turbo)
         {
-            o.Claim(Cfg.DeviceId, new Power(true), new SetMode(AcMode.Cool), new SetFan(FanSpeed.Turbo),
-                new SetTarget(Cfg.Phase1TargetC));
-            double? progresso = State.AmbienteInicial is { } ini && dev.AmbientC is { } a && ini > Cfg.Phase1TargetC
-                ? Math.Clamp((ini - a) / (double)(ini - Cfg.Phase1TargetC), 0, 1)
-                : null;
-            o.Status = new RuleStatus($"{Name} · fase 1 de 2",
-                $"{dev.AmbientC} → {Cfg.Phase1TargetC} °C · depois {Cfg.Phase2TargetC} °C", progresso);
+            var noTeto = State.TurboDesde is { } t0 && now - t0 >= TimeSpan.FromMinutes(Cfg.MaxTurboMin);
+            if (amb > Cfg.MaxC && !noTeto) return ConfortoFase.Turbo;
+            State.TurboEsgotado = amb > Cfg.MaxC;
+            return ConfortoFase.Manter;
         }
-        else
+        if (!State.TurboEsgotado && Por(State.QuenteDesde, Confirmacao)) return ConfortoFase.Turbo;
+        if (Por(State.AcimaDesde, Confirmacao)) return ConfortoFase.Manter;
+        // Aparelho já ligado (por você ou antes do app abrir): assume sem esperar a confirmação.
+        if (fase == ConfortoFase.Parado && dev.On) return amb <= Cfg.MinC ? Piso(amb) : ConfortoFase.Manter;
+        if (fase == ConfortoFase.Manter && Por(State.NoPisoDesde, ConfirmacaoPiso)) return Piso(amb);
+        if (fase is ConfortoFase.Ventilar or ConfortoFase.Parado && Cfg.AllowHeat && Por(State.AbaixoDesde, Confirmacao))
+            return ConfortoFase.Aquecer;
+        if (fase == ConfortoFase.Parado && amb >= Cfg.MaxC && CalorChegando(ctx))
         {
-            o.Claim(Cfg.DeviceId, new Power(true), new SetMode(Cfg.Phase2Mode), new SetFan(FanSpeed.Auto),
-                new SetEnergySaving(Cfg.Phase2EnergySaving), new SetTarget(Cfg.Phase2TargetC));
-            o.Status = new RuleStatus($"{Name} · fase 2 de 2", $"mantendo {Cfg.Phase2TargetC} °C", null);
+            State.AntecipouEm = DateOnly.FromDateTime(ctx.LocalNow);
+            antecipou = true;
+            return ConfortoFase.Manter;
+        }
+        return fase;
+    }
+
+    private ConfortoFase Piso(int amb) =>
+        Cfg.AllowHeat && amb < Cfg.MinC ? ConfortoFase.Aquecer : Cfg.FanAtMin ? ConfortoFase.Ventilar : ConfortoFase.Parado;
+
+    /// <summary>Previsão de sensação térmica acima do limite dentro da antecedência; uma vez por dia.</summary>
+    private bool CalorChegando(RuleContext ctx)
+    {
+        if (ctx.Weather is not { } w || State.AntecipouEm == DateOnly.FromDateTime(ctx.LocalNow)) return false;
+        var limite = ctx.Now + TimeSpan.FromMinutes(Cfg.PreCoolLeadMin);
+        return w.Hourly.Any(h => h.Time > ctx.Now && h.Time <= limite && (h.ApparentC ?? h.TempC) >= Cfg.PreCoolApparentC);
+    }
+
+    private void AvisarForaMaisFresco(RuleOutput o, RuleContext ctx, DeviceSnapshot dev, int amb)
+    {
+        if (State.Fase is not (ConfortoFase.Manter or ConfortoFase.Turbo) || ctx.Weather is not { } w) return;
+        var hora = ctx.LocalNow.Hour;
+        if (hora < 7 || hora >= 22 || w.ApparentC > amb - Cfg.CoolerOutsideC) return;
+        if (State.UltimoAvisoFora is { } u && ctx.Now - u < AvisoForaCarencia) return;
+        State.UltimoAvisoFora = ctx.Now;
+        o.Notify("Lá fora está mais fresco",
+            $"Sensação lá fora de {w.ApparentC:0.#} °C, {dev.Name} em {amb} °C. Abrir a janela e desligar o ar resfria sem gastar energia.");
+    }
+
+    private RuleOutput Reivindicar(RuleOutput o, RuleContext ctx, DeviceSnapshot dev, int? amb)
+    {
+        var dentro = amb is { } x ? $"Dentro está {x} °C" : "Sem leitura de dentro";
+        switch (State.Fase)
+        {
+            case ConfortoFase.Turbo:
+                o.Claim(Cfg.DeviceId, new Power(true), new SetMode(AcMode.Cool), new SetFan(FanSpeed.Turbo), new SetTarget(Cfg.MinC));
+                var ate = State.TurboDesde is { } t ? $", no máximo até {Hm(ctx, t.AddMinutes(Cfg.MaxTurboMin))}" : "";
+                o.Status = new RuleStatus($"{Name} · turbo", $"{dentro}, calor forte. Turbo até chegar a {Cfg.MaxC} °C{ate}.", null);
+                break;
+            case ConfortoFase.Manter:
+                o.Claim(Cfg.DeviceId, new Power(true), new SetMode(AcMode.Cool), new SetFan(FanSpeed.Auto),
+                    new SetEnergySaving(true), new SetTarget(Cfg.MaxC));
+                var piso = Cfg.FanAtMin ? "só ventila" : "desliga";
+                o.Status = new RuleStatus(Name, amb > Cfg.MaxC
+                    ? $"{dentro}, acima de {Cfg.MaxC} °C. Esfriando no modo econômico até {Cfg.MaxC} °C."
+                    : $"{dentro}. Mantendo {Cfg.MaxC} °C no modo econômico; ao chegar a {Cfg.MinC} °C, {piso}.", null);
+                break;
+            case ConfortoFase.Ventilar:
+                o.Claim(Cfg.DeviceId, new Power(true), new SetMode(AcMode.FanOnly), new SetFan(FanSpeed.Low));
+                o.Status = new RuleStatus(Name,
+                    $"{dentro}. Compressor desligado, só ventilando para economizar; volta a esfriar acima de {Cfg.MaxC} °C.", null);
+                break;
+            case ConfortoFase.Aquecer:
+                o.Claim(Cfg.DeviceId, new Power(true), new SetMode(AcMode.Heat), new SetFan(FanSpeed.Auto), new SetTarget(Cfg.MinC));
+                o.Status = new RuleStatus(Name, $"{dentro}, abaixo de {Cfg.MinC} °C. Aquecendo até {Cfg.MinC} °C.", null);
+                break;
+            case ConfortoFase.Parado when dev.On && amb <= Cfg.MinC:
+                o.Claim(Cfg.DeviceId, new Power(false));
+                o.Status = new RuleStatus(Name, $"{dentro}, na mínima. Desligando o ar para economizar.", null);
+                break;
+            case ConfortoFase.Parado when amb is { } a:
+                var espera = $"{Confirmacao.TotalMinutes:0} min";
+                var onde = a > Cfg.MaxC ? $"acima de {Cfg.MaxC} °C" : a >= Cfg.MinC ? "na faixa" : "abaixo da faixa";
+                o.Observe(Cfg.DeviceId, new RuleStatus($"{Name} de olho", a > Cfg.MaxC
+                    ? $"Dentro está {a} °C, {onde}. Se continuar assim por {espera}, liga no modo econômico."
+                    : $"Dentro está {a} °C, {onde}. Liga se passar de {Cfg.MaxC} °C por {espera}.", null));
+                break;
         }
         return o;
     }
@@ -125,24 +267,26 @@ public sealed class SaiDoPcState
     public DateTimeOffset? VoltouEm { get; set; }
 }
 
-/// <summary>Ausente do PC: economia após N min, desliga após M min; restaura ao voltar.</summary>
+/// <summary>Longe do PC: tela bloqueada desliga (na hora ou após N min); sem uso, alivia e depois desliga.</summary>
+/// <remarks>Na volta, restaura o ajuste anterior só se configurado; senão as outras regras (Conforto) decidem.</remarks>
 public sealed class SaiDoPcRule(SaiDoPcConfig cfg) : Rule<SaiDoPcConfig, SaiDoPcState>(cfg)
 {
     public static readonly TimeSpan RestoreTimeout = TimeSpan.FromMinutes(15);
 
-    public override string Name => "Saí do PC";
+    public override string Name => "Ausente";
     public override int Priority => RulePriority.SaiDoPc;
 
     public override RuleOutput Evaluate(RuleContext ctx)
     {
         var o = new RuleOutput();
         if (!ctx.Devices.TryGetValue(Cfg.DeviceId, out var dev)) return o;
-        var ausente = ctx.Presence.Away ? ctx.Presence.AwayFor : TimeSpan.Zero;
+        var p = ctx.Presence;
+        var ausente = p.Away ? p.AwayFor : TimeSpan.Zero;
 
-        if (!ctx.Presence.Away)
+        if (!p.Away)
         {
             if (State.Estagio == SaidaEstagio.Presente) return o;
-            if (State.EstavaLigado != true) { State = new(); return o; }
+            if (State.EstavaLigado != true || !Cfg.RestoreOnReturn) { State = new(); return o; }
             // Mantém o pedido até o aparelho bater com o ajuste salvo: um ciclo bloqueado não pode perder a restauração.
             State.VoltouEm ??= ctx.Now;
             var restaurar = Restaurar(State);
@@ -154,32 +298,40 @@ public sealed class SaiDoPcRule(SaiDoPcConfig cfg) : Rule<SaiDoPcConfig, SaiDoPc
             }
             if (ctx.Now - State.VoltouEm.Value > RestoreTimeout) { State = new(); return o; }
             o.Claim(Cfg.DeviceId, restaurar);
-            o.Status = new RuleStatus(Name, $"{dev.Name} voltando ao ajuste anterior", null);
+            o.Status = new RuleStatus(Name, "Você voltou. Devolvendo o ajuste que estava antes.", null);
             return o;
         }
 
         State.VoltouEm = null;
+        var bloqueou = p.Locked && Cfg.OffOnLock && ausente >= TimeSpan.FromMinutes(Cfg.OffOnLockMin);
         if (State.Estagio == SaidaEstagio.Presente)
         {
-            if (ausente < TimeSpan.FromMinutes(Cfg.EcoAfterMin) || !dev.On) return o;
+            if (!dev.On || (!bloqueou && ausente < TimeSpan.FromMinutes(Cfg.EcoAfterMin))) return o;
             State = new SaiDoPcState
             {
                 Estagio = SaidaEstagio.Economia, EstavaLigado = true,
                 Modo = dev.Mode, Ventilacao = dev.Fan, Alvo = dev.TargetC,
             };
         }
-        if (State.Estagio == SaidaEstagio.Economia && ausente >= TimeSpan.FromMinutes(Cfg.OffAfterMin))
+        if (State.Estagio == SaidaEstagio.Economia && (bloqueou || ausente >= TimeSpan.FromMinutes(Cfg.OffAfterMin)))
             State.Estagio = SaidaEstagio.Desligado;
 
-        if (State.Estagio == SaidaEstagio.Economia)
-        {
-            o.Claim(Cfg.DeviceId, new Power(true), new SetMode(AcMode.Auto), new SetTarget(Cfg.EcoTargetC));
-            o.Status = new RuleStatus(Name, $"{dev.Name} em {Cfg.EcoTargetC} °C · desliga com {Cfg.OffAfterMin} min longe", null);
-        }
-        else
+        var motivo = p.Locked ? "Tela bloqueada" : $"{(int)ausente.TotalMinutes} min sem uso do PC";
+        if (State.Estagio == SaidaEstagio.Desligado)
         {
             o.Claim(Cfg.DeviceId, new Power(false));
-            o.Status = new RuleStatus(Name, $"{dev.Name} desligado · volta ao desbloquear", null);
+            var volta = Cfg.RestoreOnReturn ? "ele volta como estava" : "as regras ativas decidem se ele liga";
+            o.Status = new RuleStatus(Name, $"{motivo}: ar desligado. Quando você voltar, {volta}.", null);
+        }
+        // Aliviar subindo o alvo só serve esfriando; aquecendo, espera a hora de desligar.
+        else if (State.Modo != AcMode.Heat)
+        {
+            DeviceCommand[] aliviar = State.Ventilacao == FanSpeed.Turbo
+                ? [new Power(true), new SetMode(AcMode.Cool), new SetTarget(Cfg.EcoTargetC), new SetFan(FanSpeed.Auto)]
+                : [new Power(true), new SetMode(AcMode.Cool), new SetTarget(Cfg.EcoTargetC)];
+            o.Claim(Cfg.DeviceId, aliviar);
+            o.Status = new RuleStatus(Name,
+                $"{motivo}: alvo em {Cfg.EcoTargetC} °C para economizar. Desliga com {Cfg.OffAfterMin} min sem uso.", null);
         }
         return o;
     }
@@ -194,64 +346,29 @@ public sealed class SaiDoPcRule(SaiDoPcConfig cfg) : Rule<SaiDoPcConfig, SaiDoPc
     }
 }
 
-public sealed class AntesDoPicoState
-{
-    public DateOnly? Dia { get; set; }
-    public DateTimeOffset? JanelaFim { get; set; }
-}
-
-/// <summary>Liga antes da primeira hora prevista acima do limite, uma vez por dia.</summary>
-public sealed class AntesDoPicoRule(AntesDoPicoConfig cfg) : Rule<AntesDoPicoConfig, AntesDoPicoState>(cfg)
-{
-    public override string Name => "Antes do pico";
-    public override int Priority => RulePriority.AntesDoPico;
-
-    public override RuleOutput Evaluate(RuleContext ctx)
-    {
-        var o = new RuleOutput();
-        if (!ctx.Devices.TryGetValue(Cfg.DeviceId, out var dev)) return o;
-        var hoje = DateOnly.FromDateTime(ctx.LocalNow);
-
-        if (State.Dia == hoje)
-        {
-            if (State.JanelaFim is { } fim && ctx.Now < fim)
-            {
-                o.Claim(Cfg.DeviceId, new Power(true), new SetMode(Cfg.Mode), new SetTarget(Cfg.TargetC));
-                o.Status = new RuleStatus(Name, $"{dev.Name} pré-resfriando em {Cfg.TargetC} °C", null);
-            }
-            return o;
-        }
-        if (ctx.Weather is null) return o;
-
-        var pico = ctx.Weather.Hourly
-            .Where(h => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(h.Time, ctx.TimeZone).DateTime) == hoje)
-            .Where(h => h.TempC >= Cfg.ForecastThresholdC)
-            .OrderBy(h => h.Time)
-            .FirstOrDefault();
-        if (pico is null) return o;
-        var inicio = pico.Time.AddMinutes(-Cfg.LeadMin);
-        if (ctx.Now < inicio || ctx.Now >= pico.Time) return o;
-
-        State.Dia = hoje;
-        if (dev.On || (Cfg.RequirePresence && ctx.Presence.Away)) return o;
-        State.JanelaFim = pico.Time;
-        o.Claim(Cfg.DeviceId, new Power(true), new SetMode(Cfg.Mode), new SetTarget(Cfg.TargetC));
-        o.Notify(Name, $"Previsão de {pico.TempC:0} °C às {TimeZoneInfo.ConvertTime(pico.Time, ctx.TimeZone):HH\\:mm}. Liguei {dev.Name} em {Cfg.TargetC} °C.");
-        o.Status = new RuleStatus(Name, $"{dev.Name} pré-resfriando em {Cfg.TargetC} °C", null);
-        return o;
-    }
-}
-
 public sealed class JanelaAbertaState
 {
     public DateTimeOffset? DisparouEm { get; set; }
+    public int? De { get; set; }
+    public int? Para { get; set; }
 }
 
-/// <summary>Em Frio, dentro subindo rápido indica janela/porta aberta: desliga e avisa.</summary>
+/// <summary>Em Frio, dentro subindo rápido e sem voltar indica janela/porta aberta: desliga e avisa.</summary>
+/// <remarks>
+/// O sensor salta um grau ou dois numa leitura isolada: a subida precisa durar <see cref="Sustentacao"/>.
+/// Ajuste manual, ou dentro voltando a cair com o ar ainda ligado, cancela o disparo.
+/// </remarks>
 public sealed class JanelaAbertaRule(JanelaAbertaConfig cfg) : Rule<JanelaAbertaConfig, JanelaAbertaState>(cfg)
 {
+    public static readonly TimeSpan Sustentacao = TimeSpan.FromMinutes(3);
+
     public override string Name => "Janela aberta";
     public override int Priority => RulePriority.JanelaAberta;
+
+    public override void OnManualChange(string deviceId)
+    {
+        if (deviceId == Cfg.DeviceId) State = new();
+    }
 
     public override RuleOutput Evaluate(RuleContext ctx)
     {
@@ -260,13 +377,10 @@ public sealed class JanelaAbertaRule(JanelaAbertaConfig cfg) : Rule<JanelaAberta
 
         if (State.DisparouEm is { } quando)
         {
-            if (ctx.Now - quando < TimeSpan.FromMinutes(Cfg.CooldownMin))
-            {
-                o.Claim(Cfg.DeviceId, new Power(false));
-                o.Status = new RuleStatus(Name, $"{dev.Name} desligado · janela aberta?", null);
-                return o;
-            }
-            State.DisparouEm = null;
+            var esfriouDeNovo = dev.On && dev.AmbientC is { } a && State.Para is { } para && a < para;
+            if (ctx.Now - quando < TimeSpan.FromMinutes(Cfg.CooldownMin) && !esfriouDeNovo)
+                return Desligar(o, ctx, quando);
+            State = new();
         }
 
         if (!dev.On || dev.Mode != AcMode.Cool || dev.AmbientC is not { } agora) return o;
@@ -278,10 +392,20 @@ public sealed class JanelaAbertaRule(JanelaAbertaConfig cfg) : Rule<JanelaAberta
         if (janela.Count == 0) return o;
         var minimo = janela.Min(s => s.AmbientC!.Value);
         if (agora - minimo < Cfg.RiseC) return o;
+        // Pelo menos duas leituras altas: com leitura a cada 5 min, uma só ficaria "sustentada" pelo relógio.
+        var alta = janela.AsEnumerable().Reverse().TakeWhile(s => s.AmbientC - minimo >= Cfg.RiseC).ToList();
+        if (alta.Count < 2 || ctx.Now - alta[^1].Time < Sustentacao) return o;
 
-        State.DisparouEm = ctx.Now;
+        State = new JanelaAbertaState { DisparouEm = ctx.Now, De = minimo, Para = agora };
+        o.Notify("Janela aberta?", $"{dev.Name} subiu de {minimo} para {agora} °C em até {Cfg.WindowMin} min com o ar no frio. Desliguei.");
+        return Desligar(o, ctx, ctx.Now);
+    }
+
+    private RuleOutput Desligar(RuleOutput o, RuleContext ctx, DateTimeOffset quando)
+    {
         o.Claim(Cfg.DeviceId, new Power(false));
-        o.Notify("Janela aberta?", $"{dev.Name} subiu de {minimo} para {agora} °C em {Cfg.WindowMin} min com o ar no frio. Desliguei.");
+        var ate = Hm(ctx, quando.AddMinutes(Cfg.CooldownMin));
+        o.Status = new RuleStatus(Name, $"Dentro subiu de {State.De} para {State.Para} °C com o ar no frio: janela ou porta aberta? Ar desligado até {ate} ou até você religar.", null);
         return o;
     }
 }
@@ -340,7 +464,7 @@ public sealed class ModoNoiteRule(ModoNoiteConfig cfg) : Rule<ModoNoiteConfig, M
             if (!State.TimerEnviado && dev.On && decorrido < TimeSpan.FromHours(Cfg.DurationHours) + TimeSpan.FromMinutes(30))
             {
                 o.Claim(Cfg.DeviceId, new Power(false));
-                o.Status = new RuleStatus(Name, $"{dev.Name} desligando · fim do modo noite", 1);
+                o.Status = new RuleStatus(Name, "Fim do modo noite: desligando o ar.", 1);
                 return o;
             }
             Cancel();
@@ -359,40 +483,9 @@ public sealed class ModoNoiteRule(ModoNoiteConfig cfg) : Rule<ModoNoiteConfig, M
         }
         o.Claim(Cfg.DeviceId, [.. cmds]);
         var restante = TimeSpan.FromHours(Cfg.DurationHours) - decorrido;
-        o.Status = new RuleStatus(Name, $"{dev.Name} em {alvo} °C · desliga em {restante:h\\:mm}",
+        var cada = Cfg.StepEveryMin == 60 ? "hora" : $"{Cfg.StepEveryMin} min";
+        o.Status = new RuleStatus(Name, $"Em {alvo} °C, subindo {Cfg.StepC} °C a cada {cada} para você não sentir frio. Desliga em {restante:h\\:mm}.",
             decorrido.TotalHours / Cfg.DurationHours);
-        return o;
-    }
-}
-
-public sealed class ForaMaisFrescoState
-{
-    public DateTimeOffset? UltimoAviso { get; set; }
-}
-
-/// <summary>Avisa quando abrir a janela resolve melhor que o ar ligado.</summary>
-public sealed class ForaMaisFrescoRule(ForaMaisFrescoConfig cfg) : Rule<ForaMaisFrescoConfig, ForaMaisFrescoState>(cfg)
-{
-    public override string Name => "Fora mais fresco";
-    public override int Priority => RulePriority.Aviso;
-
-    public override RuleOutput Evaluate(RuleContext ctx)
-    {
-        var o = new RuleOutput();
-        if (ctx.Weather is null) return o;
-        var t = TimeOnly.FromDateTime(ctx.LocalNow);
-        if (t < Cfg.FromOrDefault || t > Cfg.ToOrDefault) return o;
-        if (State.UltimoAviso is { } u && ctx.Now - u < TimeSpan.FromMinutes(Cfg.CooldownMin)) return o;
-
-        var fora = ctx.Weather.TempC;
-        var candidato = ctx.Devices.Values
-            .Where(d => d.On && d.Mode == AcMode.Cool && d.AmbientC is { } a && fora <= a - Cfg.DeltaC)
-            .FirstOrDefault();
-        if (candidato is null) return o;
-
-        State.UltimoAviso = ctx.Now;
-        o.Notify("Lá fora está mais fresco",
-            $"Fora {fora:0.#} °C, {candidato.Name} {candidato.AmbientC} °C. Abrir a janela resfria sem gastar energia.");
         return o;
     }
 }

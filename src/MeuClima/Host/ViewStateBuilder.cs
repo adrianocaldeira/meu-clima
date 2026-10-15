@@ -93,6 +93,7 @@ public static class ViewStateBuilder
             detail = a.Status.Detail,
             progress = a.Status.Progress is { } pr ? Math.Round(pr, 2) : (double?)null,
             blockedBy = a.BlockedBy,
+            kind = a.Kind switch { ActiveKind.Watching => "watching", ActiveKind.Waiting => "waiting", _ => "acting" },
         });
 
         var rules = v.Engine.Rules
@@ -152,16 +153,15 @@ public static class ViewStateBuilder
     private static string Summary(RuleConfig c, IReadOnlyList<DeviceInfo> devices)
     {
         string N(string id) => devices.FirstOrDefault(d => d.Id == id)?.Name ?? "aparelho removido";
-        string Modo(AcMode m) => m switch { AcMode.Auto => "auto", AcMode.Cool => "frio", AcMode.Heat => "quente", AcMode.FanOnly => "ventilar", _ => "?" };
+        string Bloqueio(SaiDoPcConfig x) => !x.OffOnLock ? "" : x.OffOnLockMin == 0 ? "tela bloqueada → desliga na hora; " : $"tela bloqueada {x.OffOnLockMin} min → desliga; ";
         return c switch
         {
-            EsfriarRapidoConfig x => $"{N(x.DeviceId)} · fora ≥ {x.TriggerOutsideC:0.#} °C → turbo até {x.Phase1TargetC} °C, depois {Modo(x.Phase2Mode)} {x.Phase2TargetC} °C",
-            SaiDoPcConfig x => $"{N(x.DeviceId)} · {x.EcoAfterMin} min longe → {x.EcoTargetC} °C; {x.OffAfterMin} min → desliga",
-            AntesDoPicoConfig x => $"{N(x.DeviceId)} · previsão ≥ {x.ForecastThresholdC:0.#} °C → liga {x.LeadMin} min antes em {x.TargetC} °C",
+            ConfortoConfig x => $"{N(x.DeviceId)} · faixa {x.MinC}–{x.MaxC} °C · frio econômico em {x.MaxC} °C" +
+                                (x.FanAtMin ? $", ventila em {x.MinC} °C" : "") + $", turbo a partir de {x.TurboFromC} °C",
+            SaiDoPcConfig x => $"{N(x.DeviceId)} · {Bloqueio(x)}sem uso {x.EcoAfterMin} min → {x.EcoTargetC} °C, {x.OffAfterMin} min → desliga",
             JanelaAbertaConfig x => $"{N(x.DeviceId)} · sobe {x.RiseC} °C em {x.WindowMin} min no frio → desliga",
             ModoNoiteConfig x => $"{N(x.DeviceId)} · +{x.StepC} °C a cada {x.StepEveryMin} min, desliga em {x.DurationHours} h" +
                                  (x.DailyStart is { } h ? $" · todo dia às {h:HH\\:mm}" : " · ativação manual"),
-            ForaMaisFrescoConfig x => $"Aviso quando fora estiver {x.DeltaC:0.#} °C abaixo de dentro ({x.FromOrDefault:HH\\:mm}–{x.ToOrDefault:HH\\:mm})",
             _ => "",
         };
     }

@@ -242,10 +242,14 @@ public sealed class CentralWindow : WebWindow
             if (AllowClose) return;
             e.Cancel = true;
             Hide();
+            ClosedByUser?.Invoke();
         };
     }
 
     public bool AllowClose { get; set; }
+
+    /// <summary>O usuário fechou a central (ela só se esconde).</summary>
+    public event Action? ClosedByUser;
 
     public void ShowFront(string? tab)
     {

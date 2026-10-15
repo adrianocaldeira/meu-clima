@@ -1,7 +1,7 @@
 // Central: regras, insights, ajustes e configuração (conta, cidade, cômodo do PC).
 (() => {
   'use strict';
-  const { send, on, esc, nf, money, hm, RMODE, DAYS, daysText, renderKeepFocus } = window.MC;
+  const { send, on, esc, nf, money, hm, DAYS, daysText, renderKeepFocus } = window.MC;
   const side = document.getElementById('side');
   const main = document.getElementById('main');
 
@@ -17,45 +17,42 @@
   // ---------- definição das regras (campos e padrões do contrato RuleConfig) ----------
   const num = (k, label, unit, min, max, step, hint) => ({ k, t: 'num', label, unit, min, max, step, hint });
   const bool = (k, label, hint) => ({ k, t: 'bool', label, hint });
-  const MODE_OPTS = [['Auto', 'Auto'], ['Cool', 'Frio']];
   const TIPOS = {
-    'esfriar-rapido': {
-      name: 'Esfriar rápido', desc: 'Quando fora esquenta, usa o turbo até dentro chegar ao alvo e depois mantém no automático.',
-      defaults: { triggerOutsideC: 24, stopOutsideC: 23, stopAfterMin: 30, phase1TargetC: 22, phase2TargetC: 24, phase2Mode: 'Auto', phase2EnergySaving: true, maxBoostMin: 60, requirePresence: true, schedule: null },
+    'conforto': {
+      name: 'Conforto', desc: 'Mantém dentro na faixa que você escolher, gastando o mínimo: frio econômico no topo, só ventilar no piso e turbo só no calor forte.',
+      defaults: { minC: 23, maxC: 24, turboFromC: 26, maxTurboMin: 30, fanAtMin: true, allowHeat: false, preCoolApparentC: 30, preCoolLeadMin: 30, coolerOutsideC: 3, requirePresence: true, schedule: null },
       sections: [
-        { title: 'Quando começa', fields: [{ k: 'deviceId', t: 'device', label: 'Aparelho' },
-          num('triggerOutsideC', 'Fora a partir de', '°C', 10, 45, 0.5, 'Temperatura de fora que dispara a regra.'),
-          bool('requirePresence', 'Só com alguém no PC', 'Não dispara com a tela bloqueada ou sem uso do teclado e mouse.'),
+        { title: 'Faixa de conforto', fields: [{ k: 'deviceId', t: 'device', label: 'Aparelho' },
+          num('minC', 'Mínima', '°C', 16, 30, 1, 'O sensor do aparelho mede graus inteiros.'),
+          num('maxC', 'Máxima', '°C', 16, 30, 1, 'Acima dela por 5 min, liga em Frio econômico com este alvo.')] },
+        { title: 'Como economiza', fields: [
+          bool('fanAtMin', 'Só ventilar ao chegar na mínima', 'Desliga o compressor e mantém o ar circulando. Desligado: o ar desliga.'),
+          bool('allowHeat', 'Aquecer abaixo da mínima', 'Desligado: nunca aquece. Por isso o Conforto não usa o modo Auto, que aquece sozinho.'),
+          num('coolerOutsideC', 'Avisar quando a sensação lá fora estiver mais fresca em', '°C', 1, 15, 0.5, 'Abrir a janela resfria sem gastar energia.')] },
+        { title: 'Calor forte', fields: [
+          num('turboFromC', 'Turbo a partir de', '°C', 17, 35, 1, 'Dentro, por 5 min. O turbo vai até a máxima.'),
+          num('maxTurboMin', 'Turbo por no máximo', 'min', 5, 120, 5),
+          num('preCoolApparentC', 'Antecipar se a sensação prevista passar de', '°C', 20, 45, 0.5, 'Liga antes, com dentro já na máxima, para não precisar do turbo.'),
+          num('preCoolLeadMin', 'Antecipar em', 'min', 5, 180, 5)] },
+        { title: 'Quando vale', fields: [
+          bool('requirePresence', 'Só com alguém no PC', 'Com a tela bloqueada ou sem uso do teclado e mouse, não liga nada.'),
           { k: 'schedule', t: 'schedule', label: 'Só em dias e horários' }] },
-        { title: 'Fase 1 · turbo', fields: [
-          num('phase1TargetC', 'Alvo da fase 1', '°C', 16, 30, 1, 'Liga em Frio com Turbo até dentro chegar a este valor.'),
-          num('maxBoostMin', 'Limite da fase 1', 'min', 5, 240, 5, 'Passa para a fase 2 depois deste tempo, mesmo sem atingir o alvo.')] },
-        { title: 'Fase 2 · manter', fields: [
-          num('phase2TargetC', 'Alvo da fase 2', '°C', 16, 30, 1),
-          { k: 'phase2Mode', t: 'select', label: 'Modo da fase 2', opts: MODE_OPTS },
-          bool('phase2EnergySaving', 'Econômico na fase 2')] },
-        { title: 'Quando para', fields: [
-          num('stopOutsideC', 'Fora abaixo de', '°C', 10, 45, 0.5),
-          num('stopAfterMin', 'Por pelo menos', 'min', 5, 240, 5, 'Ao parar, o Meu Clima não mexe no aparelho.')] },
       ],
     },
     'sai-do-pc': {
-      name: 'Saí do PC', desc: 'Quando você se afasta do PC, alivia o ar do cômodo e depois desliga. Volta como estava quando você retorna.',
-      defaults: { ecoAfterMin: 20, ecoTargetC: 26, offAfterMin: 60 },
-      sections: [{ title: 'Ausência', fields: [{ k: 'deviceId', t: 'device', label: 'Aparelho do cômodo do PC' },
-        num('ecoAfterMin', 'Aliviar depois de', 'min', 5, 240, 5, 'Ausência = tela bloqueada ou sem uso do teclado e mouse.'),
-        num('ecoTargetC', 'Alvo ao aliviar', '°C', 16, 30, 1, 'Passa para Auto com este alvo.'),
-        num('offAfterMin', 'Desligar depois de', 'min', 10, 480, 5)] }],
-    },
-    'antes-do-pico': {
-      name: 'Antes do pico', desc: 'Olha a previsão do dia e liga o ar antes da hora mais quente, sem precisar do turbo.',
-      defaults: { forecastThresholdC: 32, leadMin: 30, targetC: 24, mode: 'Auto', requirePresence: true },
-      sections: [{ title: 'Previsão', fields: [{ k: 'deviceId', t: 'device', label: 'Aparelho' },
-        num('forecastThresholdC', 'Previsão a partir de', '°C', 20, 45, 0.5, 'Usa a primeira hora do dia com previsão igual ou acima deste valor.'),
-        num('leadMin', 'Ligar antes', 'min', 5, 180, 5),
-        num('targetC', 'Alvo', '°C', 16, 30, 1),
-        { k: 'mode', t: 'select', label: 'Modo', opts: MODE_OPTS },
-        bool('requirePresence', 'Só com alguém no PC', 'Só liga se o aparelho estiver desligado e houver alguém no PC.')] }],
+      name: 'Ausente', desc: 'Tela bloqueada desliga o ar; sem uso do PC, alivia e depois desliga. Na volta, as regras decidem se ele liga de novo.',
+      defaults: { offOnLock: true, offOnLockMin: 0, ecoAfterMin: 20, ecoTargetC: 26, offAfterMin: 60, restoreOnReturn: false },
+      sections: [
+        { title: 'Tela bloqueada', fields: [{ k: 'deviceId', t: 'device', label: 'Aparelho do cômodo do PC' },
+          bool('offOnLock', 'Desligar ao bloquear a tela', 'Vale também quando o PC entra em suspensão.'),
+          num('offOnLockMin', 'Depois de', 'min', 0, 60, 1, '0 = na hora. 3 min evita liga-desliga em pausas curtas.')] },
+        { title: 'Sem uso do PC', fields: [
+          num('ecoAfterMin', 'Aliviar depois de', 'min', 5, 240, 5, 'Sem uso do teclado e mouse, com a tela desbloqueada.'),
+          num('ecoTargetC', 'Alvo ao aliviar', '°C', 16, 30, 1, 'Passa para Frio com este alvo.'),
+          num('offAfterMin', 'Desligar depois de', 'min', 10, 480, 5)] },
+        { title: 'Quando você volta', fields: [
+          bool('restoreOnReturn', 'Voltar ao ajuste anterior', 'Desligado: as regras ativas, como o Conforto, decidem se o ar liga.')] },
+      ],
     },
     'janela-aberta': {
       name: 'Janela aberta', desc: 'Se o ar está no frio e dentro esquenta mesmo assim, desliga e avisa.',
@@ -75,15 +72,6 @@
         num('stepEveryMin', 'A cada', 'min', 15, 240, 15),
         num('maxTargetC', 'Alvo máximo', '°C', 16, 30, 1),
         { k: 'dailyStart', t: 'optTime', label: 'Ativar todo dia às', hint: 'Desligado: ative pela bandeja, em "Mais ajustes".' }] }],
-    },
-    'fora-mais-fresco': {
-      name: 'Fora mais fresco', desc: 'Avisa quando abrir a janela resolve: fora está bem mais fresco que dentro.',
-      defaults: { deltaC: 3, cooldownMin: 180, from: '07:00:00', to: '22:00:00' },
-      sections: [{ title: 'Aviso', fields: [
-        num('deltaC', 'Fora mais fresco em', '°C', 1, 15, 0.5, 'Vale para todos os aparelhos ligados no frio.'),
-        num('cooldownMin', 'No máximo um aviso a cada', 'min', 30, 720, 30),
-        { k: 'from', t: 'time', label: 'Avisar a partir das' },
-        { k: 'to', t: 'time', label: 'Até as' }] }],
     },
   };
   const ORDER = Object.keys(TIPOS);
@@ -169,10 +157,11 @@
 
   function rulesView() {
     const rules = state.rules || [];
-    const running = new Map((state.activeRules || []).map(a => [a.ruleId, a.blockedBy ? "blocked" : "run"]));
+    // "De olho" e "em espera" não comandam nada: ficam fora de "Rodando agora".
+    const active = (state.activeRules || []).filter(a => (a.kind || 'acting') === 'acting');
+    const running = new Map(active.map(a => [a.ruleId, a.blockedBy ? "blocked" : "run"]));
     const sorted = [...rules].sort((a, b) => (running.has(b.id) - running.has(a.id)) || (ORDER.indexOf(a.tipo) - ORDER.indexOf(b.tipo)));
     const missing = ORDER.filter(t => !rules.some(r => r.tipo === t));
-    const active = state.activeRules || [];
     return `${accountAlert()}
       <div class="hrow"><h2>Regras</h2><button class="btn primary" data-act="new" data-k="new">+ Nova regra</button></div>
       ${active.length ? `<h3 class="sec">Rodando agora</h3><div class="grid">${active.map(liveBlock).join('')}</div>` : ''}
@@ -186,9 +175,8 @@
     const c = r.config || {};
     const parts = [];
     if (c.deviceId) parts.push(devName(c.deviceId));
-    if (r.tipo === 'esfriar-rapido') parts.push(c.schedule ? `${daysText(c.schedule.days)} ${hm(c.schedule.start)}–${hm(c.schedule.end)}` : 'qualquer dia e hora');
+    if (r.tipo === 'conforto') parts.push(c.schedule ? `${daysText(c.schedule.days)} ${hm(c.schedule.start)}–${hm(c.schedule.end)}` : 'qualquer dia e hora');
     if (r.tipo === 'modo-noite') parts.push(c.dailyStart ? `todo dia às ${hm(c.dailyStart)}` : 'ativação pela bandeja');
-    if (r.tipo === 'fora-mais-fresco') parts.push(`todos os aparelhos · ${hm(c.from)}–${hm(c.to)}`);
     return parts.join(' · ');
   }
 
@@ -197,14 +185,15 @@
     const c = r.config || {};
     const id = esc(r.id);
     let body = `<p class="sum">${esc(r.summary || '')}</p>`;
-    if (r.tipo === 'esfriar-rapido') {
+    if (r.tipo === 'conforto') {
       const p = v => `<span class="pill">${esc(v)}</span>`, pc = v => `<span class="pill c">${esc(v)}</span>`;
       body = `<div class="steps">
-        <div class="step"><span class="k">Quando</span><span>fora passar de ${pc(nf(c.triggerOutsideC) + ' °C')}${c.requirePresence ? ' e eu estiver no PC' : ''}</span></div>
-        <div class="step"><span class="k">Fase 1</span><span>${p('Frio')} ${p('Turbo')} alvo ${pc(c.phase1TargetC + ' °C')} até dentro chegar lá (máx. ${nf(c.maxBoostMin, 0)} min)</span></div>
-        <div class="step"><span class="k">Fase 2</span><span>${p(RMODE[c.phase2Mode] || c.phase2Mode)} ${p(c.phase2TargetC + ' °C')} ventilação automática${c.phase2EnergySaving ? ' · econômico' : ''}</span></div>
-        <div class="step"><span class="k">Para</span><span>fora abaixo de ${p(nf(c.stopOutsideC) + ' °C')} por ${nf(c.stopAfterMin, 0)} min, ou ao sair da agenda</span></div>
-      </div>${coolCurve(c)}`;
+        <div class="step"><span class="k">Faixa</span><span>${pc(c.minC + '–' + c.maxC + ' °C')}${c.requirePresence ? ' com alguém no PC' : ''}</span></div>
+        <div class="step"><span class="k">Acima</span><span>${p('Frio')} ${p('econômico')} alvo ${pc(c.maxC + ' °C')}</span></div>
+        <div class="step"><span class="k">Turbo</span><span>a partir de ${pc(c.turboFromC + ' °C')} até ${c.maxC} °C, no máximo ${nf(c.maxTurboMin, 0)} min</span></div>
+        <div class="step"><span class="k">Mínima</span><span>${c.fanAtMin ? `${p('Ventilar')} sem compressor` : 'desliga o ar'}${c.allowHeat ? ` · abaixo dela, ${p('Quente')}` : ''}</span></div>
+        <div class="step"><span class="k">Antes</span><span>sensação prevista a partir de ${pc(nf(c.preCoolApparentC) + ' °C')}: liga ${nf(c.preCoolLeadMin, 0)} min antes</span></div>
+      </div>`;
     }
     return `<div class="rule${running === 'run' ? ' running' : ''}${r.enabled ? '' : ' disabled'}">
       <div class="hd"><div><b>${esc(r.name || (TIPOS[r.tipo] || {}).name || r.tipo)}${running === 'run' ? '<span class="chip cool">rodando</span>' : running ? '<span class="chip warn">pausada</span>' : ''}${r.enabled ? '' : '<span class="chip">desativada</span>'}</b>
@@ -213,33 +202,6 @@
       ${body}
       ${known ? `<div class="ft"><button class="btn" data-act="edit" data-id="${id}" data-k="ed:${id}">Editar</button></div>` : ''}
     </div>`;
-  }
-
-  /** Curva ilustrativa das 2 fases do "Esfriar rápido", a partir dos alvos configurados. */
-  function coolCurve(c, w = 420) {
-    const p1 = +c.phase1TargetC, p2 = +c.phase2TargetC;
-    if (!isFinite(p1) || !isFinite(p2)) return '';
-    const start = Math.max(p1 + 3, p2 + 1);
-    const t1 = Math.min(+c.maxBoostMin || 60, 25), total = t1 + 35;
-    const pts = [];
-    for (let t = 0; t <= total; t += 1) {
-      const v = t <= t1 ? p1 + (start - p1) * Math.pow(1 - t / t1, 1.6) : p2 + (p1 - p2) * Math.exp(-(t - t1) / 7);
-      pts.push([t, v]);
-    }
-    const lo = Math.min(p1, p2) - 1, hi = start + 0.5;
-    const H = 124, L = 30, R = 8, T = 8, B = 22;
-    const x = t => L + t * (w - L - R) / total, y = v => T + (hi - v) * (H - T - B) / (hi - lo);
-    const d = pts.map((p, i) => (i ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1)).join(' ');
-    const mode = (RMODE[c.phase2Mode] || c.phase2Mode || '').toUpperCase();
-    const ticks = [...new Set([p1, p2, start])];
-    return `<svg class="curve" viewBox="0 0 ${w} ${H}" role="img" aria-label="Curva ilustrativa: dentro cai até ${p1} graus no turbo e depois se estabiliza em ${p2} graus no ${mode.toLowerCase()}">
-      <rect x="${x(0)}" y="${T}" width="${(x(t1) - x(0)).toFixed(1)}" height="${H - T - B}" fill="var(--cool-soft)"/>
-      ${ticks.map(v => `<line x1="${L}" x2="${w - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--line)" stroke-dasharray="3 3"/><text class="svgt" x="${L - 5}" y="${(y(v) + 3).toFixed(1)}" text-anchor="end">${nf(v)}°</text>`).join('')}
-      <path d="${d}" fill="none" stroke="var(--cool)" stroke-width="2"/>
-      <circle cx="${x(t1).toFixed(1)}" cy="${y(p1).toFixed(1)}" r="3.5" fill="var(--cool)"/>
-      <text class="svgt b" x="${(x(t1 / 2)).toFixed(1)}" y="${H - 6}" text-anchor="middle">FASE 1 · TURBO</text>
-      <text class="svgt b" x="${(x(t1 + (total - t1) / 2)).toFixed(1)}" y="${H - 6}" text-anchor="middle">FASE 2 · ${esc(mode)} ${nf(p2)}°</text>
-    </svg>`;
   }
 
   function pickerView() {
@@ -315,8 +277,7 @@
     const hasErr = Object.keys(errors).length > 0;
     const forms = def.sections.map(s => `<div class="card"><h3>${s.title}</h3><div>${s.fields.map(f => fieldHtml(f, cfg, errors)).join('')}</div></div>`).join('');
     const aside = `<div class="card"><h3>${def.name}</h3><p class="small muted" style="margin:0">${def.desc}</p>
-      <div class="fld" style="border:0;padding:0"><span class="lb" id="f-en-l">Regra ativa</span><button class="pwr" data-fb="enabled" data-k="f-enabled" aria-pressed="${!!cfg.enabled}" aria-labelledby="f-en-l"></button></div></div>
-      ${cfg.tipo === 'esfriar-rapido' ? `<div class="card"><span class="lbl">Como fica (ilustrativo)</span><div id="curve-preview">${coolCurve(cfg, 320)}</div></div>` : ''}`;
+      <div class="fld" style="border:0;padding:0"><span class="lb" id="f-en-l">Regra ativa</span><button class="pwr" data-fb="enabled" data-k="f-enabled" aria-pressed="${!!cfg.enabled}" aria-labelledby="f-en-l"></button></div></div>`;
     return `<div class="hrow"><h2>${isNew ? 'Nova regra' : 'Editar regra'} · ${def.name}</h2><button class="btn" data-act="cancel" data-k="cancel">Voltar sem salvar</button></div>
       ${hasErr ? `<div class="alert" role="alert"><div><b>Corrija os campos marcados</b><span>${esc(Object.values(errors).join(' '))}</span></div></div>` : ''}
       <div class="editor"><div class="forms">${forms}
@@ -341,8 +302,10 @@
         else if (!v.start || !v.end || v.start === v.end) e[f.k] = 'Agenda: o início e o fim precisam ser horários diferentes.';
       }
     }));
-    if (cfg.tipo === 'esfriar-rapido' && !e.stopOutsideC && !e.triggerOutsideC && cfg.stopOutsideC >= cfg.triggerOutsideC)
-      e.stopOutsideC = 'A temperatura para parar precisa ser menor que a de disparo.';
+    if (cfg.tipo === 'conforto' && !e.minC && !e.maxC && cfg.maxC < cfg.minC)
+      e.maxC = 'A máxima precisa ser igual ou maior que a mínima.';
+    if (cfg.tipo === 'conforto' && !e.maxC && !e.turboFromC && cfg.turboFromC <= cfg.maxC)
+      e.turboFromC = 'O turbo precisa começar acima da máxima.';
     if (cfg.tipo === 'sai-do-pc' && !e.offAfterMin && !e.ecoAfterMin && cfg.offAfterMin <= cfg.ecoAfterMin)
       e.offAfterMin = 'Desligar precisa vir depois de aliviar.';
     return e;
@@ -373,7 +336,7 @@
     const k = insights.kpis || {};
     const kpis = `<div class="kpis tnum">
       <div class="kpi"><span class="lbl">Ligado hoje</span><span class="v">${nf(k.runtimeTodayH)} h</span><span class="s">ontem ${k.runtimeYesterdayH == null ? '—' : nf(k.runtimeYesterdayH) + ' h'}</span></div>
-      <div class="kpi"><span class="lbl">Energia hoje <span class="ex">estimativa</span></span><span class="v">${nf(k.energyTodayKwh)} kWh</span><span class="s">≈ ${money(k.costToday)} · ${nf(state.settings.averageWatts, 0)} W × tarifa</span></div>
+      <div class="kpi"><span class="lbl">Energia hoje <span class="ex">estimativa</span></span><span class="v">${nf(k.energyTodayKwh)} kWh</span><span class="s">≈ ${money(k.costToday)} hoje${k.costMonth == null ? '' : ` · mês ≈ ${money(k.costMonth)} (${nf(k.energyMonthKwh, 0)} kWh)`}</span></div>
       <div class="kpi"><span class="lbl">Para baixar 1 °C</span><span class="v">${k.minPerDegree7d == null ? '—' : nf(k.minPerDegree7d) + ' min'}</span><span class="s">${k.minPerDegree7d == null ? 'ainda sem dados suficientes' : `média 7 dias · 30 dias: ${k.minPerDegree30d == null ? '—' : nf(k.minPerDegree30d) + ' min'}`}</span></div>
     </div>`;
     const ch = insights.chart || {};
@@ -483,9 +446,9 @@
         <div class="set"><div><b>Atualizar os aparelhos</b><span>Lê o estado na nuvem da Electrolux.</span></div>${segSet('deviceIntervalMin', [1, 2, 5], s.deviceIntervalMin, 'Intervalo dos aparelhos')}</div>
       </div>
       <div class="card stack" style="gap:0"><h3>Estimativa de energia</h3>
-        <p class="small muted" style="margin:0 0 4px">A Electrolux não informa o consumo. O Meu Clima estima: horas ligado × potência média × tarifa.</p>
+        <p class="small muted" style="margin:0 0 4px">A Electrolux não informa o consumo. O Meu Clima estima: horas com o compressor ligado × potência média, mais as horas só ventilando a ~40 W, × tarifa. A projeção do mês usa a média dos últimos 7 dias.</p>
         <div class="set"><div><b>Potência média do aparelho</b><span>Veja na etiqueta ou no manual; 9.000 BTU fica perto de 800 W.</span></div>${numIn('averageWatts', 'Potência média em watts', 'W', 100, 5000, 50)}</div>
-        <div class="set"><div><b>Tarifa de energia</b><span>Valor por kWh na sua conta de luz, com impostos.</span></div>${numIn('tariffPerKwh', 'Tarifa em reais por kWh', 'R$/kWh', 0.01, 10, 0.01)}</div>
+        <div class="set"><div><b>Tarifa de energia</b><span>Total da conta de luz ÷ kWh do mês: já inclui impostos e bandeira.</span></div>${numIn('tariffPerKwh', 'Tarifa em reais por kWh', 'R$/kWh', 0.01, 10, 0.01)}</div>
       </div>
       <div class="card stack" style="gap:0"><h3>Versão</h3>
         <div class="set"><div><b>Meu Clima ${esc(state.version || '')}</b><span>${updText}</span></div>${upd}</div>
@@ -544,7 +507,7 @@
         ${cityList}
       </div>
       <div class="card"><div class="hrow"><h3>3 · Em qual cômodo fica este PC?</h3>${st(s.pcDevice, 'definido', 'não definido')}</div>
-        <p class="small muted" style="margin:0">A regra "Saí do PC" age no ar deste cômodo quando você se afasta.</p>
+        <p class="small muted" style="margin:0">As regras "Conforto" e "Ausente" agem no ar deste cômodo.</p>
         ${devChoice}
       </div>
       </div>`;
@@ -636,8 +599,6 @@
       else if (t.dataset.time) editing.cfg[f] = t.value ? t.value + ':00' : null;
       else editing.cfg[f] = t.value || null;
       if (editing.errors[f]) { delete editing.errors[f]; t.classList.remove('invalid'); t.removeAttribute('aria-invalid'); }
-      const pv = document.getElementById('curve-preview');
-      if (pv) pv.innerHTML = coolCurve(editing.cfg, 320);
       return;
     }
     if (editing && t.dataset.sched && editing.cfg.schedule) {

@@ -77,14 +77,19 @@ public sealed class PresenceMonitor : IDisposable
 {
     public static readonly TimeSpan IdleThreshold = TimeSpan.FromMinutes(5);
     private DateTimeOffset? _lockedAt;
+    private DateTimeOffset? _suspendedAt;
 
-    public PresenceMonitor() => SystemEvents.SessionSwitch += OnSessionSwitch;
+    public PresenceMonitor()
+    {
+        SystemEvents.SessionSwitch += OnSessionSwitch;
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
+    }
 
     public event Action? Changed;
 
     public PresenceState Current(DateTimeOffset now)
     {
-        if (_lockedAt is { } t) return new PresenceState(true, now - t);
+        if ((_lockedAt ?? _suspendedAt) is { } t) return new PresenceState(true, now - t, Locked: true);
         var idle = IdleTime();
         return idle >= IdleThreshold ? new PresenceState(true, idle) : PresenceState.Present;
     }
@@ -102,6 +107,15 @@ public sealed class PresenceMonitor : IDisposable
             default:
                 return;
         }
+        Changed?.Invoke();
+    }
+
+    /// <summary>Suspensão sem bloqueio conta como bloqueio: o desligamento tenta sair antes de o PC dormir (sem garantia).</summary>
+    private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
+    {
+        if (e.Mode == PowerModes.Suspend) _suspendedAt ??= DateTimeOffset.UtcNow;
+        else if (e.Mode == PowerModes.Resume) _suspendedAt = null;
+        else return;
         Changed?.Invoke();
     }
 
@@ -123,7 +137,11 @@ public sealed class PresenceMonitor : IDisposable
     [DllImport("user32.dll")]
     private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
 
-    public void Dispose() => SystemEvents.SessionSwitch -= OnSessionSwitch;
+    public void Dispose()
+    {
+        SystemEvents.SessionSwitch -= OnSessionSwitch;
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+    }
 }
 
 /// <summary>Extrai as telas embutidas para uma pasta por versão (o WebView2 serve arquivos de pasta).</summary>

@@ -1,6 +1,7 @@
 using MeuClima.Core.Devices;
 using MeuClima.Core.History;
 using MeuClima.Core.Rules;
+using MeuClima.Core.Weather;
 using static MeuClima.Core.Devices.DeviceCommand;
 using static MeuClima.Core.Tests.TestKit;
 
@@ -9,14 +10,14 @@ namespace MeuClima.Core.Tests;
 public class RuleEngineTests
 {
     private static FakeHistory JanelaAbertaHistorico() =>
-        new([.. new[] { (0, 23), (10, 23), (20, 24), (25, 25) }
+        new([.. new[] { (0, 23), (10, 23), (20, 24), (22, 25), (25, 25) }
             .Select(p => new HistorySample(At(14).AddMinutes(p.Item1), true, true, AcMode.Cool, p.Item2, 22))]);
 
     [Fact]
     public void Prioridade_maior_fica_com_o_aparelho()
     {
         var engine = new RuleEngine([
-            new EsfriarRapidoRule(new EsfriarRapidoConfig(Dev)),
+            new ConfortoRule(new ConfortoConfig(Dev)),
             new JanelaAbertaRule(new JanelaAbertaConfig(Dev)),
         ]);
 
@@ -25,13 +26,13 @@ public class RuleEngineTests
         var plan = Assert.Single(r.Commands);
         Assert.Equal("Janela aberta", plan.RuleName);
         Assert.Equal([new Power(false)], plan.Commands);
-        Assert.Contains(r.Active, a => a.Status.Title.StartsWith("Esfriar rápido") && a.BlockedBy == "Janela aberta");
+        Assert.Contains(r.Active, a => a.Status.Title == "Conforto" && a.BlockedBy == "Janela aberta");
     }
 
     [Fact]
     public void Ajuste_manual_pausa_por_60_min_e_depois_volta()
     {
-        var engine = new RuleEngine([new EsfriarRapidoRule(new EsfriarRapidoConfig(Dev))]);
+        var engine = new RuleEngine([new ConfortoRule(new ConfortoConfig(Dev))]);
         engine.Pause(Dev, At(14) + RuleEngine.ManualPause);
 
         var pausado = engine.Evaluate(Ctx(At(14, 30), 31, Snap(ambient: 25)));
@@ -50,6 +51,19 @@ public class RuleEngineTests
         Assert.True(engine.ObserveReading(Snap(target: 23), Snap(target: 20), At(14)));
         Assert.NotNull(engine.PausedUntil(Dev, At(14, 59)));
         Assert.Null(engine.PausedUntil(Dev, At(15, 1)));
+    }
+
+    [Fact]
+    public void Ajuste_manual_cancela_o_disparo_da_janela_aberta()
+    {
+        var janela = new JanelaAbertaRule(new JanelaAbertaConfig(Dev));
+        var engine = new RuleEngine([janela]);
+        engine.Evaluate(Ctx(At(14, 25), 31, Snap(ambient: 25), history: JanelaAbertaHistorico()));
+        Assert.NotNull(janela.State.DisparouEm);
+
+        Assert.True(engine.ObserveReading(Snap(on: false), Snap(on: true), At(14, 30)));
+
+        Assert.Null(janela.State.DisparouEm);
     }
 
     [Fact]
@@ -131,7 +145,7 @@ public class RuleEngineTests
     [Fact]
     public void Regra_com_erro_avisa_uma_vez()
     {
-        var engine = new RuleEngine([new EsfriarRapidoRule(new EsfriarRapidoConfig(null!))]);
+        var engine = new RuleEngine([new ConfortoRule(new ConfortoConfig(null!))]);
 
         var primeiro = engine.Evaluate(Ctx(At(14), 31, Snap(ambient: 25)));
         var segundo = engine.Evaluate(Ctx(At(14, 1), 31, Snap(ambient: 25)));
@@ -174,7 +188,7 @@ public class RuleEngineTests
     [Fact]
     public void Comando_aguardando_confirmacao_nao_e_reenviado()
     {
-        var engine = new RuleEngine([new EsfriarRapidoRule(new EsfriarRapidoConfig(Dev))]);
+        var engine = new RuleEngine([new ConfortoRule(new ConfortoConfig(Dev))]);
         var primeiro = engine.Evaluate(Ctx(At(14), 31, Snap(ambient: 25)));
         var enviados = Assert.Single(primeiro.Commands).Commands;
         engine.RecordSent(Dev, enviados, At(14));
@@ -187,12 +201,25 @@ public class RuleEngineTests
     [Fact]
     public void Aparelho_sem_conexao_nao_recebe_comando()
     {
-        var engine = new RuleEngine([new EsfriarRapidoRule(new EsfriarRapidoConfig(Dev))]);
+        var engine = new RuleEngine([new ConfortoRule(new ConfortoConfig(Dev))]);
 
         var r = engine.Evaluate(Ctx(At(14), 31, Snap(ambient: 25, connected: false)));
 
         Assert.Empty(r.Commands);
         Assert.Contains(r.Active, a => a.BlockedBy == "aparelho sem conexão");
+    }
+
+    [Fact]
+    public void Regra_de_olho_aparece_sem_comandar_nem_bloquear()
+    {
+        var engine = new RuleEngine([new ConfortoRule(new ConfortoConfig(Dev))]);
+
+        var r = engine.Evaluate(Ctx(At(14), 30, Snap(on: false, ambient: 24)));
+
+        Assert.Empty(r.Commands);
+        var a = Assert.Single(r.Active);
+        Assert.Equal(ActiveKind.Watching, a.Kind);
+        Assert.Null(a.BlockedBy);
     }
 }
 
@@ -209,6 +236,22 @@ public class InsightsCalculatorTests
         var t = InsightsCalculator.Runtime(s, At(14), At(15, 30));
 
         Assert.Equal(TimeSpan.FromMinutes(3), t);
+    }
+
+    [Fact]
+    public void Energia_conta_so_o_ventilador_quando_esta_em_ventilar()
+    {
+        HistorySample[] s =
+        [
+            new(At(14), true, true, AcMode.Cool, 25, 24), new(At(14, 5), true, true, AcMode.Cool, 25, 24),
+            new(At(14, 10), true, true, AcMode.FanOnly, 23, 24), new(At(14, 15), true, true, AcMode.FanOnly, 23, 24),
+            new(At(14, 20), true, false, AcMode.FanOnly, 23, 24),
+        ];
+
+        var kwh = InsightsCalculator.EnergyKwh(s, At(14), At(15), averageWatts: 1200);
+
+        // 10 min a 1200 W + 10 min a 40 W.
+        Assert.Equal(0.2 + 40 / 6000.0, kwh, 6);
     }
 
     [Fact]
@@ -272,5 +315,24 @@ public class HistoryStoreTests
             Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             File.Delete(path);
         }
+    }
+}
+
+public class OpenMeteoTests
+{
+    [Fact]
+    public void Previsao_horaria_traz_a_sensacao_termica()
+    {
+        var json = System.Text.Json.Nodes.JsonNode.Parse("""
+            {"current":{"temperature_2m":28.1,"apparent_temperature":30.4,"relative_humidity_2m":61},
+             "hourly":{"time":["2026-10-14T17:00","2026-10-14T18:00"],"temperature_2m":[29.0,30.2],"apparent_temperature":[31.5,null]}}
+            """)!;
+
+        var w = OpenMeteoClient.Parse(json, At(14));
+
+        Assert.Equal(30.4, w.ApparentC);
+        Assert.Equal(31.5, w.Hourly[0].ApparentC);
+        Assert.Null(w.Hourly[1].ApparentC);
+        Assert.Equal(new DateTimeOffset(2026, 10, 14, 17, 0, 0, TimeSpan.Zero), w.Hourly[0].Time);
     }
 }

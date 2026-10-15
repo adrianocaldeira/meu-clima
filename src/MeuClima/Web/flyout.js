@@ -75,7 +75,6 @@
     const parts = [];
     if (state.account && state.account.error) parts.push(accountError(state.account.error));
     parts.push(weatherBand());
-    (state.activeRules || []).forEach(r => parts.push(liveRule(r)));
     if (!setupDone) parts.push(setupCard());
     else if (!state.devices.length && !state.updatedAt && !(state.account && state.account.error))
       parts.push(`<div class="empty"><b>Lendo os seus aparelhos…</b><span class="small">A primeira leitura da Electrolux pode levar alguns segundos.</span></div>`);
@@ -109,16 +108,28 @@
   }
   const hourText = t => { const [h, m] = String(t || '').split(':'); return m && m !== '00' ? `${h}h${m}` : `${+h}h`; };
 
-  function liveRule(r) {
-    const dev = state.devices.find(d => d.id === r.deviceId);
-    const blocked = !!r.blockedBy;
-    const chip = blocked ? `<span class="chip warn">pausada</span>` : `<span class="chip cool">ativa</span>`;
-    const bar = r.progress != null ? `<div class="bar" role="progressbar" aria-label="Progresso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(r.progress * 100)}"><i style="width:${Math.max(0, Math.min(1, r.progress)) * 100}%"></i></div>` : '';
-    const detail = [dev && !String(r.title).includes(dev.name) ? dev.name : '', r.detail].filter(Boolean).join(' · ');
-    return `<div class="live${blocked ? ' blocked' : ''}">
-      <div class="top"><b>${esc(r.title)}</b>${chip}</div>${bar}
-      <div class="d tnum">${esc(detail)}</div>
-      ${blocked ? `<div class="d">pausada: ${esc(r.blockedBy)}</div>` : ''}</div>`;
+  /** Quem está no comando do aparelho agora, e por quê: você, uma regra agindo, de olho ou ninguém. */
+  function who(d) {
+    const ar = (state.activeRules || []).filter(r => r.deviceId === d.id);
+    const cfg = id => (state.rules || []).find(r => r.id === id) || {};
+    const semNome = t => String(t || '').startsWith(d.name + ' ') ? t.slice(d.name.length + 1) : t;
+    const line = (kind, title, detail, extra = '') => `<div class="who ${kind}"><div><b>${esc(title)}</b><span class="tnum">${esc(detail)}</span></div>${extra}</div>`;
+    if (d.pausedUntil)
+      return line('manual', 'Você', `Você mexeu no ar. As regras voltam ${/^\d/.test(d.pausedUntil) ? 'às ' : ''}${d.pausedUntil}.`,
+        `<button class="link" data-act="resume" data-id="${esc(d.id)}" data-k="resume:${esc(d.id)}">Retomar agora</button>`);
+    const agindo = ar.find(r => (r.kind || 'acting') === 'acting' && !r.blockedBy);
+    if (agindo) {
+      const tipo = cfg(agindo.ruleId).tipo;
+      const kind = tipo === 'janela-aberta' ? 'block' : tipo === 'modo-noite' ? 'night' : 'rule';
+      const bar = agindo.progress != null ? `<div class="bar" role="progressbar" aria-label="Progresso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(agindo.progress * 100)}"><i style="width:${Math.max(0, Math.min(1, agindo.progress)) * 100}%"></i></div>` : '';
+      return line(kind, agindo.title, semNome(agindo.detail), bar);
+    }
+    const olho = ar.find(r => r.kind === 'watching');
+    if (olho) return line('watch', olho.title, semNome(olho.detail));
+    const espera = ar.find(r => r.kind === 'waiting');
+    if (espera) return line('none', espera.title, semNome(espera.detail));
+    const ligadas = (state.rules || []).filter(r => r.enabled && r.config && r.config.deviceId === d.id).map(r => r.name);
+    return line('none', 'Nenhuma regra agindo', ligadas.length ? `Nenhuma regra está mexendo neste ar. Ligadas aqui: ${ligadas.join(', ')}.` : 'Nenhuma regra ligada para este aparelho.');
   }
 
   function setupCard() {
@@ -143,11 +154,9 @@
       : d.on ? `${esc((MODE[d.mode] || d.mode).toLowerCase())} · ${esc((FAN[d.fan] || d.fan).toLowerCase())} · amb&nbsp;${nf(d.ambientC, 0)}&nbsp;°C`
         : `desligado · amb&nbsp;${nf(d.ambientC, 0)}&nbsp;°C`;
     const chips = [];
-    if (isPending(d0) && !off) chips.push(`<span class="chip pend">aguardando</span>`);
+    if (isPending(d0) && !off) chips.push(`<span class="chip pend" title="Comando enviado. A Electrolux leva cerca de 30 s para confirmar.">enviando ao ar…</span>`);
     if (off) chips.push(`<span class="chip warn">sem conexão${d.disconnectedSince ? ' desde ' + esc(d.disconnectedSince) : ''}</span>`);
-    if (d.nightMode) chips.push(`<span class="chip cool">modo noite</span>`);
     if (d.stopTimeSec > 0 && !d.nightMode) chips.push(`<span class="chip">desliga em ${durText(d.stopTimeSec)}</span>`);
-    if (d.pausedUntil) chips.push(`<span class="chip warn">automações pausadas até ${esc(d.pausedUntil)} <button class="link" data-act="resume" data-id="${id}" data-k="resume:${id}">Retomar</button></span>`);
     const noTarget = d.mode === 'FANONLY';
     const isOpen = expanded.has(d.id);
     return `<div class="dev${off ? ' offline' : ''}">
@@ -160,6 +169,7 @@
         <button class="pwr" data-act="power" data-id="${id}" data-k="pwr:${id}" aria-pressed="${!!d.on}" aria-label="Ligar ${esc(d.name)}"${dis}></button>
       </div>
       ${chips.length ? `<div class="chips">${chips.join('')}</div>` : ''}
+      ${off ? '' : who(d)}
       ${off ? '' : `<button class="link tog" data-act="more" data-id="${id}" data-k="more:${id}" aria-expanded="${isOpen}">${isOpen ? 'Menos ajustes' : 'Mais ajustes'}</button>`}
       ${!off && isOpen ? moreBlock(d) : ''}
     </div>`;
@@ -203,8 +213,17 @@
     const act = b.dataset.act;
     const d0 = b.dataset.id && state && state.devices.find(x => x.id === b.dataset.id);
     const d = d0 && devView(d0);
+    if (act !== 'menu') setMenu(false);
     switch (act) {
       case 'central': send('openCentral', b.dataset.tab ? { tab: b.dataset.tab } : {}); break;
+      case 'menu': setMenu(document.getElementById('menu').hidden); break;
+      case 'pauseAll':
+        for (const x of state ? state.devices.filter(x => x.connected) : []) {
+          setOverlay(x.id, { pausedUntil: 'daqui a 1 h' });
+          send('pause', { deviceId: x.id, minutes: 60 });
+        }
+        render(); break;
+      case 'checkUpdate': send('checkUpdate'); break;
       case 'quit': send('quit'); break;
       case 'dec': bumpTarget(d0, -1); break;
       case 'inc': bumpTarget(d0, +1); break;
@@ -224,7 +243,19 @@
       case 'more': if (expanded.has(d0.id)) expanded.delete(d0.id); else expanded.add(d0.id); render(); break;
     }
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') send('closeFlyout'); });
+  function setMenu(open) {
+    document.getElementById('menu').hidden = !open;
+    document.getElementById('menu-btn').setAttribute('aria-expanded', String(open));
+    if (open) document.querySelector('#menu button').focus();
+  }
+  // A bandeja se esconde ao perder o foco; sem isso, reabriria com o menu aberto.
+  window.addEventListener('blur', () => setMenu(false));
+  document.addEventListener('mousedown', e => { if (!e.target.closest('#menu, #menu-btn')) setMenu(false); });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (!document.getElementById('menu').hidden) { setMenu(false); document.getElementById('menu-btn').focus(); }
+    else send('closeFlyout');
+  });
 
   send('ready');
 })();

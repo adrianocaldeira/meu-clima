@@ -26,7 +26,16 @@ public static class InsightsBuilder
             amostras.Values.Aggregate(TimeSpan.Zero, (acc, x) => acc + InsightsCalculator.Runtime(x, a, b));
         var hoje = Soma(meiaNoite, now);
         var ontemT = Soma(ontem, meiaNoite);
-        var kwh = InsightsCalculator.EnergyKwh(hoje, s.AverageWatts);
+        double Energia(DateTimeOffset a, DateTimeOffset b) =>
+            amostras.Values.Sum(x => InsightsCalculator.EnergyKwh(x, a, b, s.AverageWatts));
+        var kwh = Energia(meiaNoite, now);
+
+        // Projeção do mês pela média diária dos últimos 7 dias (ou menos, se o histórico for mais curto).
+        var primeira = amostras.Values.Where(x => x.Count > 0).Select(x => x[0].Time).DefaultIfEmpty(now).Min();
+        var diasMedidos = Math.Min(7, (now - primeira).TotalDays);
+        double? kwhMes = diasMedidos >= 1
+            ? Energia(now.AddDays(-diasMedidos), now) / diasMedidos * DateTime.DaysInMonth(localNow.Year, localNow.Month)
+            : null;
 
         var refId = s.PcDeviceId ?? devices.FirstOrDefault()?.Id;
         var refSamples = refId is null ? [] : amostras[refId];
@@ -74,18 +83,21 @@ public static class InsightsBuilder
 
         var longe = InsightsCalculator.AwayOffTime(history.Events(now.AddDays(-7)), now);
         if (longe >= TimeSpan.FromMinutes(30))
-            items.Add(Item("ok", $"\"Saí do PC\" manteve o ar desligado por {longe.TotalHours:0.#} h nesta semana",
+            items.Add(Item("ok", $"\"Ausente\" manteve o ar desligado por {longe.TotalHours:0.#} h nesta semana",
                 $"Cerca de {InsightsCalculator.EnergyKwh(longe, s.AverageWatts):0.#} kWh a menos, pela estimativa."));
 
         if (ontemT > TimeSpan.FromHours(1) && hoje > ontemT * 1.3)
             items.Add(Item("cool", "O ar ficou mais tempo ligado hoje", $"{hoje.TotalHours:0.#} h hoje contra {ontemT.TotalHours:0.#} h ontem."));
 
-        if (weather?.PeakOn(DateOnly.FromDateTime(localNow.Date).AddDays(1), tz) is { } pico)
+        var amanha = DateOnly.FromDateTime(localNow.Date).AddDays(1);
+        if (weather?.PeakOn(amanha, tz) is { } pico)
         {
-            var antes = engine.Rules.OfType<AntesDoPicoRule>().FirstOrDefault();
-            var texto = antes is { Cfg.Enabled: true } && pico.TempC >= antes.Cfg.ForecastThresholdC
-                ? $"\"Antes do pico\" vai ligar o ar {antes.Cfg.LeadMin} min antes, em {antes.Cfg.TargetC} °C."
-                : pico.TempC >= 30 ? "Ative \"Antes do pico\" para resfriar antes do calor, sem precisar do turbo." : "Dia ameno, sem necessidade de pré-resfriar.";
+            var conforto = engine.Rules.OfType<ConfortoRule>().FirstOrDefault(r => r.Cfg.Enabled);
+            // O Conforto antecipa por qualquer hora quente, não só a da máxima.
+            var sensacao = weather.MaxApparentOn(amanha, tz) ?? pico.TempC;
+            var texto = conforto is not null && sensacao >= conforto.Cfg.PreCoolApparentC
+                ? $"Sensação prevista de {sensacao:0} °C: o Conforto liga o ar {conforto.Cfg.PreCoolLeadMin} min antes se dentro estiver em {conforto.Cfg.MaxC} °C."
+                : sensacao >= 30 ? "Ative o Conforto para resfriar antes do calor, sem precisar do turbo." : "Dia ameno, sem necessidade de pré-resfriar.";
             items.Add(Item("sun", $"Amanhã o pico será de {pico.TempC:0} °C às {ViewStateBuilder.Hm(pico.Time)}", texto));
         }
 
@@ -97,6 +109,8 @@ public static class InsightsBuilder
                 runtimeYesterdayH = Math.Round(ontemT.TotalHours, 1),
                 energyTodayKwh = Math.Round(kwh, 1),
                 costToday = Math.Round(kwh * s.TariffPerKwh, 2),
+                energyMonthKwh = kwhMes is { } km ? Math.Round(km, 0) : (double?)null,
+                costMonth = kwhMes is { } cm ? Math.Round(cm * s.TariffPerKwh, 0) : (double?)null,
                 minPerDegree7d = mpd7 is { } m7 ? Math.Round(m7, 1) : (double?)null,
                 minPerDegree30d = mpd30 is { } m30 ? Math.Round(m30, 1) : (double?)null,
             },

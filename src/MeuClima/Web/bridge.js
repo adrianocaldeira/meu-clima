@@ -102,8 +102,8 @@
 
     const caps = { modes: ['AUTO', 'COOL', 'HEAT', 'FANONLY'], fans: ['AUTO', 'LOW', 'MIDDLE', 'HIGH', 'TURBO'], min: 16, max: 30 };
     const devices = [
-      { id: 'dev-escritorio', name: 'Escritório', model: 'XI09R', connected: true, disconnectedSince: null, on: true, mode: 'COOL', fan: 'TURBO',
-        targetC: 22, ambientC: 25, eco: false, oscillate: false, stopTimeSec: 0, filter: 'GOOD', alerts: [], pending: false,
+      { id: 'dev-escritorio', name: 'Escritório', model: 'XI09R', connected: true, disconnectedSince: null, on: true, mode: 'COOL', fan: 'AUTO',
+        targetC: 24, ambientC: 25, eco: true, oscillate: false, stopTimeSec: 0, filter: 'GOOD', alerts: [], pending: false,
         pausedUntil: null, isPcRoom: true, nightMode: false, caps },
       { id: 'dev-sala', name: 'Sala', model: 'XI12F', connected: true, disconnectedSince: null, on: true, mode: 'AUTO', fan: 'AUTO',
         targetC: 24, ambientC: 26, eco: true, oscillate: true, stopTimeSec: 0, filter: 'GOOD', alerts: [], pending: false,
@@ -113,12 +113,12 @@
         pausedUntil: null, isPcRoom: false, nightMode: false, caps },
     ];
     const rules = [
-      { tipo: 'esfriar-rapido', id: 'r-esfriar', enabled: true, deviceId: 'dev-escritorio', triggerOutsideC: 24, stopOutsideC: 23, stopAfterMin: 30,
-        phase1TargetC: 22, phase2TargetC: 24, phase2Mode: 'Auto', phase2EnergySaving: true, maxBoostMin: 60, requirePresence: true,
+      { tipo: 'conforto', id: 'r-conforto', enabled: true, deviceId: 'dev-escritorio', minC: 23, maxC: 24, turboFromC: 26, maxTurboMin: 30,
+        fanAtMin: true, allowHeat: false, preCoolApparentC: 30, preCoolLeadMin: 30, coolerOutsideC: 3, requirePresence: true,
         schedule: { days: [1, 2, 3, 4, 5], start: '08:00:00', end: '19:00:00' } },
-      { tipo: 'sai-do-pc', id: 'r-saipc', enabled: true, deviceId: 'dev-escritorio', ecoAfterMin: 20, ecoTargetC: 26, offAfterMin: 60 },
-      { tipo: 'antes-do-pico', id: 'r-pico', enabled: true, deviceId: 'dev-sala', forecastThresholdC: 32, leadMin: 30, targetC: 24, mode: 'Auto', requirePresence: true },
+      { tipo: 'sai-do-pc', id: 'r-saipc', enabled: true, deviceId: 'dev-escritorio', offOnLock: true, offOnLockMin: 0, ecoAfterMin: 20, ecoTargetC: 26, offAfterMin: 60, restoreOnReturn: false },
       { tipo: 'janela-aberta', id: 'r-janela', enabled: true, deviceId: 'dev-escritorio', riseC: 2, windowMin: 15, minOnMin: 15, cooldownMin: 60 },
+      { tipo: 'janela-aberta', id: 'r-janela-sala', enabled: true, deviceId: 'dev-sala', riseC: 2, windowMin: 15, minOnMin: 15, cooldownMin: 60 },
     ];
     const S = {
       updatedAt: clock(),
@@ -132,7 +132,7 @@
       rules: [],
       settings: { startWithWindows: true, weatherIntervalMin: 15, deviceIntervalMin: 1, notifications: true, averageWatts: 800, tariffPerKwh: 0.85,
         pcDeviceId: variant === 'setup' ? null : 'dev-escritorio', theme: 'system', checkUpdates: true },
-      version: '0.1.0',
+      version: '0.1.1',
       update: { available: false, version: null, downloading: false },
     };
     let ruleConfigs = variant === 'setup' ? [] : rules;
@@ -141,36 +141,42 @@
     function summary(c) {
       const dn = devName(c.deviceId);
       switch (c.tipo) {
-        case 'esfriar-rapido': return `${dn} · fora ≥ ${c.triggerOutsideC} °C → turbo até ${c.phase1TargetC} °C, depois ${(RMODE[c.phase2Mode] || c.phase2Mode).toLowerCase()} ${c.phase2TargetC} °C`;
-        case 'sai-do-pc': return `${dn} · ${c.ecoAfterMin} min longe → auto ${c.ecoTargetC} °C; ${c.offAfterMin} min → desliga`;
-        case 'antes-do-pico': return `${dn} · previsão ≥ ${c.forecastThresholdC} °C → liga ${c.leadMin} min antes em ${(RMODE[c.mode] || c.mode).toLowerCase()} ${c.targetC} °C`;
+        case 'conforto': return `${dn} · faixa ${c.minC}–${c.maxC} °C · frio econômico em ${c.maxC} °C${c.fanAtMin ? `, ventila em ${c.minC} °C` : ''}, turbo a partir de ${c.turboFromC} °C`;
+        case 'sai-do-pc': return `${dn} · ${c.offOnLock ? (c.offOnLockMin ? `tela bloqueada ${c.offOnLockMin} min → desliga; ` : 'tela bloqueada → desliga na hora; ') : ''}sem uso ${c.ecoAfterMin} min → ${c.ecoTargetC} °C, ${c.offAfterMin} min → desliga`;
         case 'janela-aberta': return `${dn} · dentro sobe ${c.riseC} °C em ${c.windowMin} min no frio → desliga e avisa`;
         case 'modo-noite': return `${dn} · desliga em ${c.durationHours} h, sobe ${c.stepC} °C a cada ${c.stepEveryMin} min até ${c.maxTargetC} °C${c.dailyStart ? ` · todo dia às ${c.dailyStart.slice(0, 5)}` : ''}`;
-        case 'fora-mais-fresco': return `Avisa quando fora estiver ${c.deltaC} °C abaixo de dentro, das ${c.from.slice(0, 5)} às ${c.to.slice(0, 5)}`;
         default: return '';
       }
     }
-    const NAMES = { 'esfriar-rapido': 'Esfriar rápido', 'sai-do-pc': 'Saí do PC', 'antes-do-pico': 'Antes do pico', 'janela-aberta': 'Janela aberta', 'modo-noite': 'Modo noite', 'fora-mais-fresco': 'Fora mais fresco' };
+    const NAMES = { conforto: 'Conforto', 'sai-do-pc': 'Ausente', 'janela-aberta': 'Janela aberta', 'modo-noite': 'Modo noite' };
 
     function rebuild() {
       S.rules = ruleConfigs.map(c => ({ id: c.id, tipo: c.tipo, name: NAMES[c.tipo], enabled: c.enabled, summary: summary(c), config: c }));
-      const er = ruleConfigs.find(r => r.tipo === 'esfriar-rapido' && r.enabled);
-      const dev = er && S.devices.find(d => d.id === er.deviceId);
+      const cf = ruleConfigs.find(r => r.tipo === 'conforto' && r.enabled);
+      const dev = cf && S.devices.find(d => d.id === cf.deviceId);
       S.activeRules = [];
-      if (er && dev && dev.on) {
-        S.activeRules.push({ ruleId: er.id, deviceId: dev.id, title: 'Esfriar rápido · fase 1 de 2',
-          detail: `${dev.ambientC} → ${er.phase1TargetC} °C · faltam ~12 min · depois ${er.phase2TargetC} °C`, progress: 0.4,
-          blockedBy: dev.pausedUntil ? `ajuste manual até ${dev.pausedUntil}` : null });
+      if (cf && dev && dev.on) {
+        const turbo = dev.ambientC >= cf.turboFromC;
+        S.activeRules.push({ ruleId: cf.id, deviceId: dev.id, title: turbo ? 'Conforto · turbo' : 'Conforto',
+          detail: turbo ? `Dentro está ${dev.ambientC} °C, calor forte. Turbo até chegar a ${cf.maxC} °C, no máximo até ${inMin(18)}.`
+            : dev.ambientC > cf.maxC ? `Dentro está ${dev.ambientC} °C, acima de ${cf.maxC} °C. Esfriando no modo econômico até ${cf.maxC} °C.`
+              : `Dentro está ${dev.ambientC} °C. Mantendo ${cf.maxC} °C no modo econômico; ao chegar a ${cf.minC} °C, só ventila.`, progress: null,
+          blockedBy: dev.pausedUntil ? `ajuste manual · volta às ${dev.pausedUntil}` : null });
+      } else if (cf && dev && !dev.pausedUntil) {
+        S.activeRules.push({ ruleId: cf.id, deviceId: dev.id, kind: 'watching', title: 'Conforto de olho',
+          detail: dev.ambientC > cf.maxC ? `Dentro está ${dev.ambientC} °C, acima de ${cf.maxC} °C. Se continuar assim por 5 min, liga no modo econômico.`
+            : `Dentro está ${dev.ambientC} °C, na faixa. Liga se passar de ${cf.maxC} °C por 5 min.`, progress: null, blockedBy: null });
       }
-      const pk = ruleConfigs.find(r => r.tipo === 'antes-do-pico' && r.enabled);
-      const pkDev = pk && S.devices.find(d => d.id === pk.deviceId);
-      if (pkDev && pkDev.pausedUntil) {
-        S.activeRules.push({ ruleId: pk.id, deviceId: pkDev.id, title: 'Antes do pico', detail: `ligaria às 14h30 em ${pk.targetC} °C`, progress: null,
-          blockedBy: `ajuste manual até ${pkDev.pausedUntil}` });
+      const ja = ruleConfigs.find(r => r.tipo === 'janela-aberta' && r.enabled && r.deviceId === 'dev-sala');
+      const sala = S.devices.find(d => d.id === 'dev-sala');
+      if (ja && sala && sala.pausedUntil) {
+        S.activeRules.push({ ruleId: ja.id, deviceId: sala.id, title: 'Janela aberta',
+          detail: `Dentro subiu de 24 para 26 °C com o ar no frio: janela ou porta aberta? Ar desligado até ${inMin(35)} ou até você religar.`, progress: null,
+          blockedBy: `ajuste manual · volta às ${sala.pausedUntil}` });
       }
       S.devices.forEach(d => {
         if (d.nightMode) {
-          S.activeRules.push({ ruleId: 'modo-noite', deviceId: d.id, title: `Modo noite · ${d.name}`, detail: `alvo ${d.targetC} °C · desliga às ${inMin(Math.round(d.stopTimeSec / 60))}`, progress: 0.05, blockedBy: null });
+          S.activeRules.push({ ruleId: 'modo-noite', deviceId: d.id, title: 'Modo noite', detail: `Em ${d.targetC} °C, subindo 1 °C a cada hora para você não sentir frio. Desliga às ${inMin(Math.round(d.stopTimeSec / 60))}.`, progress: 0.05, blockedBy: null });
         }
       });
       S.updatedAt = clock();
@@ -191,7 +197,7 @@
 
     function demoInsights(days) {
       if (variant === 'vazio') {
-        return { kpis: { runtimeTodayH: 0, runtimeYesterdayH: null, energyTodayKwh: 0, costToday: 0, minPerDegree7d: null, minPerDegree30d: null },
+        return { kpis: { runtimeTodayH: 0, runtimeYesterdayH: null, energyTodayKwh: 0, costToday: 0, energyMonthKwh: null, costMonth: null, minPerDegree7d: null, minPerDegree30d: null },
           chart: { from: new Date(Date.now() - days * 864e5).toISOString(), to: new Date().toISOString(), outside: [], devices: [] }, items: [] };
       }
       const to = new Date(); to.setSeconds(0, 0);
@@ -214,14 +220,15 @@
       }
       return {
         kpis: { runtimeTodayH: 10.6, runtimeYesterdayH: 9.1, energyTodayKwh: 5.8 * S.settings.averageWatts / 800, costToday: 5.8 * S.settings.averageWatts / 800 * S.settings.tariffPerKwh,
+          energyMonthKwh: Math.round(150 * S.settings.averageWatts / 800), costMonth: Math.round(150 * S.settings.averageWatts / 800 * S.settings.tariffPerKwh),
           minPerDegree7d: 7, minPerDegree30d: 6 },
         chart: { from: from.toISOString(), to: to.toISOString(), outside,
           devices: [{ id: 'dev-escritorio', name: 'Escritório', points: office }, { id: 'dev-sala', name: 'Sala', points: sala }] },
         items: [
           { kind: 'warn', title: 'Quarto de hóspedes está sem conexão desde 14:02', body: 'Ficou fora do Wi-Fi 3 vezes esta semana. Verifique o sinal do roteador nesse cômodo.' },
           { kind: 'cool', title: 'O Escritório está esfriando 15% mais devagar', body: 'Leva 7 min por grau contra 6 min no mês passado, com o mesmo calor lá fora. Limpe o filtro.' },
-          { kind: 'ok', title: '"Saí do PC" economizou 2,3 h de ar ligado esta semana', body: 'O ar ficou em 26 °C ou desligado enquanto a tela estava bloqueada.' },
-          { kind: 'sun', title: 'Amanhã o pico será de 35 °C às 14h', body: 'Ative "Antes do pico" para ligar o ar às 13h30 em 24 °C, sem precisar do turbo.' },
+          { kind: 'ok', title: '"Ausente" manteve o ar desligado por 2,3 h nesta semana', body: 'Cerca de 1,8 kWh a menos, pela estimativa.' },
+          { kind: 'sun', title: 'Amanhã o pico será de 35 °C às 14:00', body: 'Sensação prevista de 37 °C: o Conforto liga o ar 30 min antes se dentro estiver em 24 °C.' },
         ],
       };
     }

@@ -10,13 +10,19 @@
   .fly{width:100%;max-height:640px;display:flex;flex-direction:column;background:var(--panel);overflow:hidden}
   .demo body{background:var(--desk);padding:24px}
   .demo .fly{width:380px;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
-  .whead{display:flex;justify-content:space-between;align-items:center;padding:11px 14px 11px 16px;border-bottom:1px solid var(--line);gap:10px;flex:none}
+  .whead{position:relative;display:flex;justify-content:space-between;align-items:center;padding:12px 14px 12px 16px;border-bottom:1px solid var(--line);gap:10px;flex:none}
   .whead .ttl{display:grid;gap:0}
   .whead b{font:600 .98rem var(--display)}
   .whead .mono{font-size:.68rem;color:var(--ink-3)}
-  .view{scrollbar-width:thin;overflow-anchor:none;padding:14px 16px;display:flex;flex-direction:column;gap:12px;overflow:auto;flex:1 1 auto;min-height:0}
+  .whead .acts{display:flex;gap:6px;align-items:center}
+  .menu{position:absolute;right:12px;top:calc(100% - 4px);background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:5px;display:grid;min-width:210px;z-index:5}
+  .menu button{border:0;background:transparent;text-align:left;padding:8px 10px;border-radius:7px;font:500 .84rem var(--body)}
+  .menu button:hover,.menu button:focus-visible{background:var(--panel-2)}
+  .menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+  .menu .q{color:var(--err)}
+  .view{scrollbar-width:thin;overflow-anchor:none;padding:16px;display:flex;flex-direction:column;gap:14px;overflow:auto;flex:1 1 auto;min-height:0}
   .view>*{flex-shrink:0}
-  .foot{display:flex;justify-content:space-between;align-items:center;padding:7px 16px;border-top:1px solid var(--line);flex:none;background:var(--panel-2)}
+  .foot{display:flex;justify-content:space-between;align-items:center;padding:8px 16px;border-top:1px solid var(--line);flex:none;background:var(--panel-2)}
   .foot .link{color:var(--ink-3);font-size:.74rem}
   .setup{border:1px solid var(--cool);background:var(--cool-soft);border-radius:12px;padding:14px;display:grid;gap:8px;justify-items:start}
   .setup b{font:600 .95rem var(--display)}
@@ -29,12 +35,20 @@
 <div class="fly" id="app" aria-busy="true">
   <div class="whead">
     <div class="ttl"><b>Meu Clima</b><span class="mono tnum" id="upd">carregando…</span></div>
-    <button class="btn" data-act="central" data-k="central">Abrir central</button>
+    <div class="acts">
+      <button class="btn" data-act="central" data-k="central">Abrir central</button>
+      <button class="ib" id="menu-btn" data-act="menu" data-k="menu" aria-label="Mais opções" aria-haspopup="menu" aria-expanded="false">⋯</button>
+    </div>
+    <div class="menu" id="menu" role="menu" hidden>
+      <button role="menuitem" data-act="pauseAll" data-k="m-pause">Pausar as regras por 1 h</button>
+      <button role="menuitem" data-act="checkUpdate" data-k="m-upd">Verificar atualizações</button>
+      <hr>
+      <button role="menuitem" class="q" data-act="quit" data-k="m-quit">Sair do Meu Clima</button>
+    </div>
   </div>
   <div class="view" id="view" data-scroll="view"></div>
   <div class="foot">
     <span class="mono small muted" id="foot-info"></span>
-    <button class="link" data-act="quit" data-k="quit">Sair do Meu Clima</button>
   </div>
 </div>
 <script src="bridge.js"></script>

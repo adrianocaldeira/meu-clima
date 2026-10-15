@@ -4,7 +4,9 @@ namespace MeuClima.Core.Rules;
 
 public sealed record PlannedCommands(string DeviceId, string RuleName, IReadOnlyList<DeviceCommand> Commands);
 
-public sealed record ActiveRule(string RuleId, string DeviceId, RuleStatus Status, string? BlockedBy);
+public enum ActiveKind { Acting, Watching, Waiting }
+
+public sealed record ActiveRule(string RuleId, string DeviceId, RuleStatus Status, string? BlockedBy, ActiveKind Kind = ActiveKind.Acting);
 
 public sealed record EngineResult(
     IReadOnlyList<PlannedCommands> Commands,
@@ -38,6 +40,13 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
     public void Pause(string deviceId, DateTimeOffset until) => _pausedUntil[deviceId] = until;
 
     public void Resume(string deviceId) => _pausedUntil.Remove(deviceId);
+
+    /// <summary>Ajuste do usuário: pausa as automações do aparelho e avisa as regras (ex.: cancela a "Janela aberta").</summary>
+    public void ManualChange(string deviceId, DateTimeOffset now)
+    {
+        Pause(deviceId, now + ManualPause);
+        foreach (var r in _rules) r.OnManualChange(deviceId);
+    }
 
     /// <summary>Leva pausas, envios e pendências para um motor recriado (regra salva ou excluída).</summary>
     public void CopyRuntimeFrom(RuleEngine other)
@@ -79,7 +88,7 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
         if (_lastSent.TryGetValue(current.Id, out var t) && now - t <= ConfirmationWindow
             && _pending.TryGetValue(current.Id, out var p) && !Contradicts(previous, current, p.Cmds))
             return false;
-        Pause(current.Id, now + ManualPause);
+        ManualChange(current.Id, now);
         // Sem isso, Expected reaplicaria o pedido do app por cima do ajuste do usuário até a janela fechar.
         _pending.Remove(current.Id);
         return true;
@@ -118,8 +127,8 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
     public EngineResult Evaluate(RuleContext ctx)
     {
         var expected = ctx.Devices.ToDictionary(kv => kv.Key, kv => Expected(kv.Value, ctx.Now));
-        var ctxExp = ctx with { Devices = expected };
         var owner = new Dictionary<string, IRule>();
+        var ctxExp = ctx with { Devices = expected, Blocked = id => owner.ContainsKey(id) || PausedUntil(id, ctx.Now) is not null };
         var commands = new List<PlannedCommands>();
         var notes = new List<Notification>();
         var active = new List<ActiveRule>();
@@ -151,6 +160,9 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
                 var plan = CommandPlanner.Plan(expected[deviceId], desired);
                 if (plan.Count > 0) commands.Add(new PlannedCommands(deviceId, rule.Name, plan));
             }
+            foreach (var (deviceId, (st, waiting)) in output.Observed)
+                if (!output.Claims.ContainsKey(deviceId))
+                    active.Add(new ActiveRule(rule.Config.Id, deviceId, st, null, waiting ? ActiveKind.Waiting : ActiveKind.Watching));
         }
         return new EngineResult(commands, notes, active);
     }

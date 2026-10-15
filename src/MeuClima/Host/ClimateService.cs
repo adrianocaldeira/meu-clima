@@ -59,6 +59,11 @@ public sealed class ClimateService : IDisposable
         _weather = new OpenMeteoClient(http, _clock);
         _history = new HistoryStore(AppPaths.History);
         _presence.Changed += Kick;
+        if (RuleMigration.Migrate(settings.Current.Rules) is { } migradas)
+        {
+            settings.Update(s => s with { Rules = migradas });
+            Log.Write("Regras Esfriar rápido, Antes do pico e Fora mais fresco convertidas em Conforto.");
+        }
         RebuildEngine();
         _lastState = Snapshot();
     }
@@ -175,8 +180,9 @@ public sealed class ClimateService : IDisposable
         }
         catch (HttpRequestException ex) when (ex.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.Unauthorized)
         {
-            _accountError = "A Electrolux recusou a API key. Confira a chave em Configuração.";
-            Log.Write($"Leitura dos aparelhos recusada: HTTP {(int)ex.StatusCode!}");
+            // 403 vem tanto de chave inválida quanto de limite de chamadas: o corpo diz qual, por isso vai para o log.
+            _accountError = $"A Electrolux recusou a leitura (HTTP {(int)ex.StatusCode!}). Pode ser a API key ou o limite de chamadas; tento de novo em 5 min.";
+            Log.Write($"Leitura dos aparelhos recusada: {ex.Message}");
             _nextDevicePoll = now.AddMinutes(5);
             return true;
         }
@@ -270,7 +276,7 @@ public sealed class ClimateService : IDisposable
             var plan = CommandPlanner.Plan(_engine.Expected(reading, now), [command]);
             if (plan.Count == 0) return;
             _engine.RecordSent(deviceId, plan, now);
-            _engine.Pause(deviceId, now + RuleEngine.ManualPause);
+            _engine.ManualChange(deviceId, now);
             Publish();
             await SendAsync(deviceId, plan, UserOrigin, now, CancellationToken.None);
             Publish();
@@ -486,15 +492,9 @@ public sealed class ClimateService : IDisposable
     {
         var s = _settings.Current;
         if (s.DefaultRulesCreated || s.PcDeviceId is not { } pc || _devices.Count == 0) return;
-        var rules = new List<RuleConfig>
-        {
-            new EsfriarRapidoConfig(pc),
-            new SaiDoPcConfig(pc),
-            new AntesDoPicoConfig(pc),
-        };
+        var rules = new List<RuleConfig> { new ConfortoConfig(pc), new SaiDoPcConfig(pc) };
         rules.AddRange(_devices.Select(d => new JanelaAbertaConfig(d.Id)));
         rules.AddRange(_devices.Select(d => new ModoNoiteConfig(d.Id)));
-        rules.Add(new ForaMaisFrescoConfig(From: new TimeOnly(7, 0), To: new TimeOnly(22, 0)));
         _settings.Update(x => x with { Rules = [.. x.Rules, .. rules], DefaultRulesCreated = true });
         RebuildEngine();
     }
@@ -581,12 +581,10 @@ public static class RuleFactory
 {
     public static IRule Create(RuleConfig c) => c switch
     {
-        EsfriarRapidoConfig x => new EsfriarRapidoRule(x),
+        ConfortoConfig x => new ConfortoRule(x),
         SaiDoPcConfig x => new SaiDoPcRule(x),
-        AntesDoPicoConfig x => new AntesDoPicoRule(x),
         JanelaAbertaConfig x => new JanelaAbertaRule(x),
         ModoNoiteConfig x => new ModoNoiteRule(x),
-        ForaMaisFrescoConfig x => new ForaMaisFrescoRule(x),
         _ => throw new NotSupportedException(c.GetType().Name),
     };
 }

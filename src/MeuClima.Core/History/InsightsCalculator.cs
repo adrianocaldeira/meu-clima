@@ -9,13 +9,17 @@ public static class InsightsCalculator
     /// <summary>Intervalo maior que isso entre leituras é tratado como lacuna (app fechado, PC desligado).</summary>
     public static readonly TimeSpan MaxGap = TimeSpan.FromMinutes(5);
 
-    public static TimeSpan Runtime(IReadOnlyList<HistorySample> samples, DateTimeOffset from, DateTimeOffset to)
+    /// <summary>Consumo típico só do ventilador (sem compressor), em watts; ordem de grandeza, não medição.</summary>
+    public const double FanOnlyWatts = 40;
+
+    public static TimeSpan Runtime(IReadOnlyList<HistorySample> samples, DateTimeOffset from, DateTimeOffset to,
+        Func<HistorySample, bool>? filter = null)
     {
         var total = TimeSpan.Zero;
         for (var i = 0; i < samples.Count - 1; i++)
         {
             var a = samples[i];
-            if (!a.On || a.Time >= to) continue;
+            if (!a.On || a.Time >= to || (filter is not null && !filter(a))) continue;
             var ini = a.Time < from ? from : a.Time;
             var fim = samples[i + 1].Time > to ? to : samples[i + 1].Time;
             if (fim <= ini || samples[i + 1].Time - a.Time > MaxGap) continue;
@@ -25,6 +29,11 @@ public static class InsightsCalculator
     }
 
     public static double EnergyKwh(TimeSpan runtime, double averageWatts) => runtime.TotalHours * averageWatts / 1000.0;
+
+    /// <summary>Energia estimada no período: horas com compressor × potência média + horas só ventilando × <see cref="FanOnlyWatts"/>.</summary>
+    public static double EnergyKwh(IReadOnlyList<HistorySample> samples, DateTimeOffset from, DateTimeOffset to, double averageWatts) =>
+        EnergyKwh(Runtime(samples, from, to, s => s.Mode != AcMode.FanOnly), averageWatts)
+        + EnergyKwh(Runtime(samples, from, to, s => s.Mode == AcMode.FanOnly), FanOnlyWatts);
 
     /// <summary>Minutos médios para o ambiente cair 1 °C com o ar ligado em Frio.</summary>
     /// <remarks>O sensor é inteiro: mede o tempo entre degraus consecutivos de queda dentro da mesma sessão.</remarks>
@@ -75,7 +84,7 @@ public static class InsightsCalculator
         return desde;
     }
 
-    /// <summary>Tempo em que "Saí do PC" manteve o aparelho desligado (pares desligou → voltou).</summary>
+    /// <summary>Tempo em que a regra "Ausente" manteve o aparelho desligado (pares desligou → voltou).</summary>
     public static TimeSpan AwayOffTime(IReadOnlyList<EventRecord> events, DateTimeOffset now)
     {
         var total = TimeSpan.Zero;
