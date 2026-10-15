@@ -63,7 +63,7 @@ public static class InsightsBuilder
             var semana = am.Where(x => x.Time >= now.AddDays(-7)).ToList();
             var quedas = InsightsCalculator.Disconnections(semana);
             if (InsightsCalculator.DisconnectedSince(am) is { } desde)
-                items.Add(Item("warn", $"{d.Name} está sem conexão desde {ViewStateBuilder.Hm(desde)}",
+                items.Add(Item("warn", $"{d.Name} está sem conexão desde {ViewStateBuilder.QuandoDesde(desde, now)}",
                     quedas > 1 ? $"Caiu {quedas} vezes nos últimos 7 dias. Verifique o sinal do Wi-Fi perto do aparelho." : "Confira se o aparelho está na tomada e com Wi-Fi."));
             else if (quedas >= 3)
                 items.Add(Item("warn", $"{d.Name} perdeu a conexão {quedas} vezes nesta semana", "Sinal de Wi-Fi fraco perto do aparelho costuma causar isso."));

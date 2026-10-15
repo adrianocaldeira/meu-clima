@@ -30,6 +30,15 @@ public static class ViewStateBuilder
 {
     public static string Hm(DateTimeOffset t) => TimeZoneInfo.ConvertTime(t, TimeZoneInfo.Local).ToString("HH:mm", CultureInfo.InvariantCulture);
 
+    /// <summary>"14:02" hoje, "ontem 17:53" ou "13/10 17:53": para quando o horário pode ser de outro dia.</summary>
+    public static string QuandoDesde(DateTimeOffset t, DateTimeOffset now)
+    {
+        var local = TimeZoneInfo.ConvertTime(t, TimeZoneInfo.Local);
+        var dias = (TimeZoneInfo.ConvertTime(now, TimeZoneInfo.Local).Date - local.Date).Days;
+        var hm = local.ToString("HH:mm", CultureInfo.InvariantCulture);
+        return dias switch { <= 0 => hm, 1 => $"ontem {hm}", _ => $"{local:dd/MM} {hm}" };
+    }
+
     public static string Build(ViewInputs v)
     {
         var s = v.Settings;
@@ -60,7 +69,7 @@ public static class ViewStateBuilder
                 name = d.Name,
                 model = cap?.Model,
                 connected = exp?.Connected ?? false,
-                disconnectedSince = exp is { Connected: false } && desde is { } ds ? Hm(ds) : null,
+                disconnectedSince = exp is { Connected: false } && desde is { } ds ? QuandoDesde(ds, v.Now) : null,
                 on = exp?.On ?? false,
                 mode = ModeApi(exp?.Mode),
                 fan = FanApi(exp?.Fan),

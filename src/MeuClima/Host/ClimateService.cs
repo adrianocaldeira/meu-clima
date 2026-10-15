@@ -37,6 +37,7 @@ public sealed class ClimateService : IDisposable
     private readonly Dictionary<(string Device, string Rule), DateTimeOffset> _ruleRetryAt = [];
     private readonly HashSet<(string Device, string Origem)> _rejectNotified = [];
     private readonly Dictionary<string, SaidaEstagio> _saidaEstagio = [];
+    private readonly Dictionary<(string Rule, string Device), string> _logAtivas = [];
     private WeatherSnapshot? _weatherNow;
     private DateTimeOffset _nextDevicePoll = DateTimeOffset.MinValue;
     private DateTimeOffset _nextWeatherPoll = DateTimeOffset.MinValue;
@@ -159,7 +160,9 @@ public sealed class ClimateService : IDisposable
                     catch (HttpRequestException ex) { Log.Write($"Capabilities de {d.Name} falhou: {ex.Message}"); }
                 }
                 var snap = (await _electrolux.GetStateAsync(d.Id, ct)) with { Name = d.Name };
-                if (_readings.TryGetValue(d.Id, out var prev) && _engine.ObserveReading(prev, snap, now))
+                _readings.TryGetValue(d.Id, out var anterior);
+                if (anterior is null || Descrever(anterior) != Descrever(snap)) Log.Write($"Leitura {d.Name}: {Descrever(snap)}");
+                if (anterior is { } prev && _engine.ObserveReading(prev, snap, now))
                 {
                     _history.RecordEvent(now, d.Id, "manual", "mudança feita fora do Meu Clima");
                     Raise("Automações pausadas", $"{d.Name} foi ajustado fora do Meu Clima. As regras voltam em 1 hora.");
@@ -200,6 +203,7 @@ public sealed class ClimateService : IDisposable
         var ctx = new RuleContext(now, TimeZoneInfo.Local, _weatherNow, _readings, _presence.Current(now), _history);
         var result = _engine.Evaluate(ctx);
         _lastResult = result;
+        LogRegrasAtivas(result);
         TrackSaidaEvents(now);
         SaveRuleState();
 
@@ -218,7 +222,27 @@ public sealed class ClimateService : IDisposable
         }
     }
 
-    private enum SendResult { Ok, Rejected, Failed }
+    private enum SendResult { Ok, Rejected, Failed, Deferred }
+
+    private static string Descrever(DeviceSnapshot s) => !s.Connected ? "sem conexão"
+        : $"{(s.On ? "ligado" : "desligado")} {s.Mode} {s.Fan} alvo {s.TargetC?.ToString() ?? "-"} dentro {s.AmbientC?.ToString() ?? "-"}{(s.EnergySaving == true ? " eco" : "")}";
+
+    /// <summary>Registra no log quando uma regra muda o que diz sobre um aparelho, para reconstruir decisões.</summary>
+    private void LogRegrasAtivas(EngineResult result)
+    {
+        var agora = result.Active.GroupBy(a => (Rule: a.RuleId, Device: a.DeviceId)).ToDictionary(g => g.Key,
+            g => g.Last() is var a ? $"[{a.Kind}] {a.Status.Title}: {a.Status.Detail}{(a.BlockedBy is { } b ? $" (bloqueada: {b})" : "")}" : "");
+        // Sem os números: contadores ("desliga em 3:59", "20 min sem uso") e a temperatura (já logada na leitura)
+        // mudam a cada minuto sem decisão nova.
+        static string SemNumeros(string s) => System.Text.RegularExpressions.Regex.Replace(s, @"\d", "");
+        foreach (var (chave, texto) in agora)
+            if (!_logAtivas.TryGetValue(chave, out var antes) || SemNumeros(antes) != SemNumeros(texto))
+                Log.Write($"Regra em {NameOf(chave.Device)} {texto}");
+        foreach (var chave in _logAtivas.Keys.Except(agora.Keys))
+            Log.Write($"Regra em {NameOf(chave.Device)} parou: {_logAtivas[chave].Split(':')[0]}");
+        _logAtivas.Clear();
+        foreach (var (k, v) in agora) _logAtivas[k] = v;
+    }
 
     private const string UserOrigin = "você";
 
@@ -232,6 +256,14 @@ public sealed class ClimateService : IDisposable
             foreach (var c in cmds)
             {
                 var r = await _electrolux.SendAsync(deviceId, c, ct);
+                // Logo após trocar de modo (ex.: sair de Ventilar), a nuvem ainda vê o modo antigo e recusa o alvo.
+                if (!r.Ok && r.Outcome == CommandOutcome.Rejected && c is DeviceCommand.SetTarget
+                    && enviados.Any(x => x is DeviceCommand.SetMode) && origem != UserOrigin)
+                {
+                    Log.Write($"{origem}: alvo adiado em {NameOf(deviceId)}, aparelho ainda trocando de modo: {r.Detail}");
+                    resultado = SendResult.Deferred;
+                    break;
+                }
                 if (!r.Ok)
                 {
                     Log.Write($"{origem}: comando {c} não aplicado em {deviceId}: {r.Outcome} {r.Detail}");
@@ -260,6 +292,7 @@ public sealed class ClimateService : IDisposable
         {
             _engine.RecordSent(deviceId, enviados, now);
             _history.RecordEvent(now, deviceId, "comando", $"{origem}: {string.Join(", ", enviados)}");
+            Log.Write($"{origem} → {NameOf(deviceId)}: {string.Join(", ", enviados)}");
         }
         return resultado;
     }

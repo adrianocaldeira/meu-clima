@@ -50,13 +50,14 @@ Os valores abaixo são os **padrões**; os ajustáveis aparecem na configuraçã
 opcional; sem ela, vale para qualquer dia e hora. "Só com alguém no PC" pode ser desligado.
 
 **O que faz:**
-- **Acima da máxima** por 5 min: liga (ou passa) para Frio, ventilação Auto, **modo econômico**,
+- **Acima da máxima** por 5 min (por 2 min se estiver 2 °C ou mais acima): liga (ou passa) para Frio, ventilação Auto, **modo econômico**,
   alvo 24 °C.
-- **Calor forte** — dentro **≥ 26 °C** por 5 min: Frio com ventilação **Turbo** até voltar a 24 °C,
+- **Calor forte** — dentro **≥ 26 °C** por 2 min: Frio com ventilação **Turbo** até voltar a 24 °C,
   por no máximo **30 min**. Esgotado o tempo, volta ao Frio econômico e só tenta o turbo de novo
   depois que dentro chegar à máxima.
 - **Na mínima** por 10 min: **só ventila** (compressor desligado, ventilação baixa). Com "Só ventilar"
-  desligado, desliga o ar. Volta ao frio quando dentro passar da máxima por 5 min.
+  desligado, desliga o ar. Volta ao frio quando dentro passar da máxima pelo mesmo tempo; enquanto espera, o painel diz
+  desde quando passou e até que horas espera.
 - **Antes do calor:** se a **sensação térmica** prevista para os próximos 30 min passar de **30 °C** e
   dentro já estiver na máxima, liga em Frio econômico. Uma vez por dia.
 - **Lá fora mais fresco:** com o ar esfriando, se a sensação lá fora estiver **3 °C abaixo** de

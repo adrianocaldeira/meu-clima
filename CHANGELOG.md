@@ -6,6 +6,19 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+### Mudado
+- "Conforto" reage mais rápido ao calor forte: com dentro 2 °C ou mais acima da máxima, volta ao frio
+  (ou entra no turbo) em 2 min, não em 5. Enquanto espera, o painel diz desde quando passou da máxima
+  e até que horas espera.
+- O log (`%LocalAppData%\MeuClima\meuclima.log`) registra cada leitura que mudou, o que cada regra
+  decidiu e cada comando aplicado, para diagnosticar o comportamento das regras.
+
+### Corrigido
+- Ao sair de "só ventilar", a Electrolux recusava a temperatura alvo enviada logo após a troca de
+  modo: aparecia o aviso "Comando não aplicado" e o Conforto ficava 10 min sem comandar o aparelho.
+  Agora o alvo é reenviado no ciclo seguinte, sem aviso.
+- "Sem conexão desde" mostra o dia quando a queda não é de hoje ("ontem 17:53").
+
 ## [0.2.0] — 2026
 
 ### Adicionado

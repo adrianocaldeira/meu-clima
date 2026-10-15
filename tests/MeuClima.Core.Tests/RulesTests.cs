@@ -131,6 +131,43 @@ public class ConfortoTests
         Assert.Equal(ConfortoFase.Turbo, r.State.Fase);
     }
 
+    private static ConfortoRule Ventilando()
+    {
+        var r = Rule();
+        r.Evaluate(Ctx(At(14), 30, Snap(ambient: 24)));
+        r.Evaluate(Ctx(At(14, 1), 30, Snap(ambient: 23)));
+        r.Evaluate(Ctx(At(14, 11), 30, Snap(ambient: 23)));
+        Assert.Equal(ConfortoFase.Ventilar, r.State.Fase);
+        return r;
+    }
+
+    [Fact]
+    public void Dois_graus_acima_da_maxima_volta_ao_frio_em_2_min_e_diz_ate_quando_espera()
+    {
+        var r = Ventilando();
+        r.Evaluate(Ctx(At(15, 59), 30, Snap(mode: AcMode.FanOnly, ambient: 26)));
+
+        var esperando = r.Evaluate(Ctx(At(16), 30, Snap(mode: AcMode.FanOnly, ambient: 26)));
+        Assert.Equal(ConfortoFase.Ventilar, r.State.Fase);
+        Assert.Equal("Dentro está 26 °C, acima de 24 °C desde 15:59. Se continuar até 16:01, volta a esfriar.", esperando.Status!.Detail);
+
+        var frio = r.Evaluate(Ctx(At(16, 1), 30, Snap(mode: AcMode.FanOnly, ambient: 26)));
+        Assert.Equal(ConfortoFase.Turbo, r.State.Fase);
+        Assert.Contains(new SetMode(AcMode.Cool), frio.Claims[Dev]);
+    }
+
+    [Fact]
+    public void Um_grau_acima_da_maxima_ainda_espera_5_min()
+    {
+        var r = Ventilando();
+        r.Evaluate(Ctx(At(15, 59), 30, Snap(mode: AcMode.FanOnly, ambient: 25)));
+
+        r.Evaluate(Ctx(At(16, 1), 30, Snap(mode: AcMode.FanOnly, ambient: 25)));
+        Assert.Equal(ConfortoFase.Ventilar, r.State.Fase);
+        r.Evaluate(Ctx(At(16, 4), 30, Snap(mode: AcMode.FanOnly, ambient: 25)));
+        Assert.Equal(ConfortoFase.Manter, r.State.Fase);
+    }
+
     [Fact]
     public void Na_minima_por_10_min_so_ventila_e_volta_ao_frio_acima_da_maxima()
     {

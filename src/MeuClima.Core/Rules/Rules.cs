@@ -63,13 +63,15 @@ public sealed class ConfortoState
 /// <summary>Mantém dentro entre a mínima e a máxima com o menor gasto: frio econômico, ventilar e turbo só no calor forte.</summary>
 /// <remarks>
 /// O sensor mede graus inteiros e às vezes salta numa leitura só: mudar de fase pede a condição sustentada
-/// por <see cref="Confirmacao"/> (sair do frio para ventilar, <see cref="ConfirmacaoPiso"/>). Nunca usa o modo
+/// por <see cref="Confirmacao"/> (sair do frio para ventilar, <see cref="ConfirmacaoPiso"/>; 2 °C ou mais acima
+/// da máxima, <see cref="ConfirmacaoForte"/>). Nunca usa o modo
 /// Auto, que aquece sozinho quando dentro fica abaixo do alvo.
 /// </remarks>
 public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, ConfortoState>(cfg)
 {
     public static readonly TimeSpan Confirmacao = TimeSpan.FromMinutes(5);
     public static readonly TimeSpan ConfirmacaoPiso = TimeSpan.FromMinutes(10);
+    public static readonly TimeSpan ConfirmacaoForte = TimeSpan.FromMinutes(2);
     public static readonly TimeSpan AvisoForaCarencia = TimeSpan.FromHours(3);
 
     public override string Name => "Conforto";
@@ -174,8 +176,8 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
             State.TurboEsgotado = amb > Cfg.MaxC;
             return ConfortoFase.Manter;
         }
-        if (!State.TurboEsgotado && Por(State.QuenteDesde, Confirmacao)) return ConfortoFase.Turbo;
-        if (Por(State.AcimaDesde, Confirmacao)) return ConfortoFase.Manter;
+        if (!State.TurboEsgotado && Por(State.QuenteDesde, EsperaAcima(amb))) return ConfortoFase.Turbo;
+        if (Por(State.AcimaDesde, EsperaAcima(amb))) return ConfortoFase.Manter;
         // Aparelho já ligado (por você ou antes do app abrir): assume sem esperar a confirmação.
         if (fase == ConfortoFase.Parado && dev.On) return amb <= Cfg.MinC ? Piso(amb) : ConfortoFase.Manter;
         if (fase == ConfortoFase.Manter && Por(State.NoPisoDesde, ConfirmacaoPiso)) return Piso(amb);
@@ -189,6 +191,14 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
         }
         return fase;
     }
+
+    private TimeSpan EsperaAcima(int amb) => amb >= Cfg.MaxC + 2 ? ConfirmacaoForte : Confirmacao;
+
+    /// <summary>"acima de 24 °C desde 15:59. Se continuar até 16:01," enquanto a subida não confirmou.</summary>
+    private string? AcimaAte(RuleContext ctx, int? amb) =>
+        amb is { } a && a > Cfg.MaxC && State.AcimaDesde is { } d
+            ? $"acima de {Cfg.MaxC} °C desde {Hm(ctx, d)}. Se continuar até {Hm(ctx, d + EsperaAcima(a))},"
+            : null;
 
     private ConfortoFase Piso(int amb) =>
         Cfg.AllowHeat && amb < Cfg.MinC ? ConfortoFase.Aquecer : Cfg.FanAtMin ? ConfortoFase.Ventilar : ConfortoFase.Parado;
@@ -232,8 +242,9 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
                 break;
             case ConfortoFase.Ventilar:
                 o.Claim(Cfg.DeviceId, new Power(true), new SetMode(AcMode.FanOnly), new SetFan(FanSpeed.Low));
-                o.Status = new RuleStatus(Name,
-                    $"{dentro}. Compressor desligado, só ventilando para economizar; volta a esfriar acima de {Cfg.MaxC} °C.", null);
+                o.Status = new RuleStatus(Name, AcimaAte(ctx, amb) is { } subiu
+                    ? $"{dentro}, {subiu} volta a esfriar."
+                    : $"{dentro}. Compressor desligado, só ventilando para economizar; volta a esfriar acima de {Cfg.MaxC} °C.", null);
                 break;
             case ConfortoFase.Aquecer:
                 o.Claim(Cfg.DeviceId, new Power(true), new SetMode(AcMode.Heat), new SetFan(FanSpeed.Auto), new SetTarget(Cfg.MinC));
@@ -246,8 +257,8 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
             case ConfortoFase.Parado when amb is { } a:
                 var espera = $"{Confirmacao.TotalMinutes:0} min";
                 var onde = a > Cfg.MaxC ? $"acima de {Cfg.MaxC} °C" : a >= Cfg.MinC ? "na faixa" : "abaixo da faixa";
-                o.Observe(Cfg.DeviceId, new RuleStatus($"{Name} de olho", a > Cfg.MaxC
-                    ? $"Dentro está {a} °C, {onde}. Se continuar assim por {espera}, liga no modo econômico."
+                o.Observe(Cfg.DeviceId, new RuleStatus($"{Name} de olho", AcimaAte(ctx, a) is { } subiuAte
+                    ? $"Dentro está {a} °C, {subiuAte} liga no modo econômico."
                     : $"Dentro está {a} °C, {onde}. Liga se passar de {Cfg.MaxC} °C por {espera}.", null));
                 break;
         }

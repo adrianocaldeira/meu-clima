@@ -44,6 +44,12 @@ O 403 vem tanto de API key inválida quanto do limite de chamadas da API. O app 
 se o aviso some sozinho, era o limite. Se continuar, confira a API key no portal e informe de novo em
 **Conta e local**. O motivo exato que a Electrolux devolveu fica em `%LocalAppData%\MeuClima\meuclima.log`.
 
+### Uma regra fez (ou não fez) algo e eu quero entender por quê
+
+Abra `%LocalAppData%\MeuClima\meuclima.log`. Ele registra cada leitura que mudou ("Leitura Escritório:
+ligado Cool Auto alvo 24 dentro 26"), cada mudança no que uma regra diz sobre um aparelho e cada
+comando aplicado. Ao reportar um problema, anexe o trecho do horário em questão.
+
 ### Onde ficam minha API key e meu token?
 
 Em `%APPDATA%\MeuClima\`, criptografadas com a **DPAPI** do Windows: só o seu usuário, naquele PC,
