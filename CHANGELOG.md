@@ -6,6 +6,14 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+## [0.2.2] — 2026
+
+### Corrigido
+- Ao sair do turbo, a Electrolux recusava o modo econômico enviado logo após a troca de ventilação:
+  o alvo ficava em 23 °C (mais frio que a faixa), aparecia o aviso "Comando não aplicado" e o
+  Conforto ficava 10 min sem agir. Agora qualquer ajuste recusado logo após trocar modo ou
+  ventilação é reenviado no ciclo seguinte, sem aviso.
+
 ## [0.2.1] — 2026
 
 ### Mudado
@@ -107,7 +115,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
   portable abre a página da release.
 - Instalador (Inno Setup), sem exigir administrador.
 
-[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.2.1...HEAD
+[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.2
 [0.2.1]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.1
 [0.2.0]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.0
 [0.1.1]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.1.1
