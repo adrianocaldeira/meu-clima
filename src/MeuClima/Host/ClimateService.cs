@@ -38,6 +38,7 @@ public sealed class ClimateService : IDisposable
     private readonly HashSet<(string Device, string Origem)> _rejectNotified = [];
     private readonly Dictionary<string, SaidaEstagio> _saidaEstagio = [];
     private readonly Dictionary<(string Rule, string Device), string> _logAtivas = [];
+    private readonly Dictionary<string, string> _temperaturasLidas = [];
     private WeatherSnapshot? _weatherNow;
     private DateTimeOffset _nextDevicePoll = DateTimeOffset.MinValue;
     private DateTimeOffset _nextWeatherPoll = DateTimeOffset.MinValue;
@@ -56,6 +57,12 @@ public sealed class ClimateService : IDisposable
         var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         http.DefaultRequestHeaders.UserAgent.ParseAdd($"MeuClima/{VersionLabel}");
         _electrolux = new ElectroluxClient(http, tokens, _clock);
+        _electrolux.StateRead += (id, temperaturas) =>
+        {
+            if (_temperaturasLidas.GetValueOrDefault(id) == temperaturas) return;
+            _temperaturasLidas[id] = temperaturas;
+            Log.Write($"Electrolux {NameOf(id)}: {temperaturas}");
+        };
         _electrolux.SaveFailed += ex => Log.Write($"Token renovado não foi gravado em disco (segue em memória): {ex.GetType().Name}");
         _weather = new OpenMeteoClient(http, _clock);
         _history = new HistoryStore(AppPaths.History);
@@ -256,10 +263,9 @@ public sealed class ClimateService : IDisposable
             foreach (var c in cmds)
             {
                 var r = await _electrolux.SendAsync(deviceId, c, ct);
-                // Logo após trocar modo ou ventilação, a nuvem ainda vê o estado antigo e recusa o que depende dele
-                // (alvo em Ventilar, econômico em Turbo).
-                if (!r.Ok && r.Outcome == CommandOutcome.Rejected && origem != UserOrigin
-                    && enviados.Any(x => x is DeviceCommand.SetMode or DeviceCommand.SetFan))
+                // Logo após um ajuste aceito no mesmo lote, a nuvem ainda vê o estado antigo e recusa o que depende
+                // dele (alvo em Ventilar, econômico em Turbo, Turbo com econômico).
+                if (!r.Ok && r.Outcome == CommandOutcome.Rejected && origem != UserOrigin && enviados.Count > 0)
                 {
                     Log.Write($"{origem}: {c} adiado em {NameOf(deviceId)}, aparelho ainda trocando de modo: {r.Detail}");
                     resultado = SendResult.Deferred;

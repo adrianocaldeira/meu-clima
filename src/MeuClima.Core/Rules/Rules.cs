@@ -50,6 +50,10 @@ public sealed class ConfortoState
     public DateTimeOffset? TurboDesde { get; set; }
     /// <summary>Turbo bateu o teto sem chegar à máxima: só volta depois que dentro entrar na faixa.</summary>
     public bool TurboEsgotado { get; set; }
+    /// <summary>Leitura de dentro quando o turbo começou.</summary>
+    public int? TurboInicioC { get; set; }
+    /// <summary>Turbo inteiro sem baixar 1 °C: leitura que o sensor travou. Some quando a leitura muda.</summary>
+    public int? SensorParadoEm { get; set; }
     public DateTimeOffset? AcimaDesde { get; set; }
     public DateTimeOffset? QuenteDesde { get; set; }
     public DateTimeOffset? NoPisoDesde { get; set; }
@@ -82,8 +86,17 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
         if (deviceId == Cfg.DeviceId) Reiniciar();
     }
 
-    private void Reiniciar() =>
-        State = new ConfortoState { AntecipouEm = State.AntecipouEm, UltimoAvisoFora = State.UltimoAvisoFora };
+    private void Reiniciar() => State = Recomeco(State);
+
+    /// <summary>Recomeça as fases, mas guarda o que vale por dia e a trava do turbo, que só some quando dentro baixa:
+    /// pausa, ausência ou outra regra no comando não podem liberar outro turbo.</summary>
+    private static ConfortoState Recomeco(ConfortoState s) => new()
+    {
+        AntecipouEm = s.AntecipouEm,
+        UltimoAvisoFora = s.UltimoAvisoFora,
+        TurboEsgotado = s.TurboEsgotado,
+        SensorParadoEm = s.SensorParadoEm,
+    };
 
     public override RuleOutput Evaluate(RuleContext ctx)
     {
@@ -99,12 +112,12 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
         {
             // Bloqueado, a fase avançaria sem comando (aviso falso, turbo e antecipação gastos à toa).
             // Avalia do zero só para mostrar o que faria, e descarta o estado e os avisos.
-            var (antecipou, avisou) = (State.AntecipouEm, State.UltimoAvisoFora);
+            var guardado = Recomeco(State);
             Reiniciar();
             var previa = Avaliar(o, ctx, dev);
             previa.Notifications.Clear();
             previa.Observed.Clear();
-            State = new ConfortoState { AntecipouEm = antecipou, UltimoAvisoFora = avisou };
+            State = guardado;
             return previa;
         }
         return Avaliar(o, ctx, dev);
@@ -122,8 +135,12 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
         var antes = State.Fase;
         var antecipou = false;
         State.Fase = Proxima(ctx, dev, amb, ref antecipou);
-        if (State.Fase != ConfortoFase.Turbo) State.TurboDesde = null;
-        else State.TurboDesde ??= ctx.Now;
+        if (State.Fase != ConfortoFase.Turbo) (State.TurboDesde, State.TurboInicioC) = (null, null);
+        else
+        {
+            State.TurboDesde ??= ctx.Now;
+            State.TurboInicioC ??= amb;
+        }
 
         if (State.Fase != antes && State.Fase == ConfortoFase.Turbo)
             o.Notify("Conforto: turbo", $"{dev.Name} em {amb} °C. Turbo até {Cfg.MaxC} °C, por no máximo {Cfg.MaxTurboMin} min.");
@@ -143,6 +160,7 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
         State.NoPisoDesde = amb <= Cfg.MinC ? State.NoPisoDesde ?? leitura : null;
         State.AbaixoDesde = amb < Cfg.MinC ? State.AbaixoDesde ?? leitura : null;
         if (amb <= Cfg.MaxC) State.TurboEsgotado = false;
+        if (State.SensorParadoEm is { } p && p != amb) State.SensorParadoEm = null;
     }
 
     /// <summary>Ausência ou fim da agenda: solta o aparelho, mas não o deixa em turbo sem prazo.</summary>
@@ -174,6 +192,7 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
             var noTeto = State.TurboDesde is { } t0 && now - t0 >= TimeSpan.FromMinutes(Cfg.MaxTurboMin);
             if (amb > Cfg.MaxC && !noTeto) return ConfortoFase.Turbo;
             State.TurboEsgotado = amb > Cfg.MaxC;
+            if (noTeto && State.TurboInicioC is { } inicio && amb >= inicio) State.SensorParadoEm = amb;
             return ConfortoFase.Manter;
         }
         if (!State.TurboEsgotado && Por(State.QuenteDesde, EsperaAcima(amb))) return ConfortoFase.Turbo;
@@ -236,7 +255,9 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
                 o.Claim(Cfg.DeviceId, new Power(true), new SetMode(AcMode.Cool), new SetFan(FanSpeed.Auto),
                     new SetEnergySaving(true), new SetTarget(Cfg.MaxC));
                 var piso = Cfg.FanAtMin ? "só ventila" : "desliga";
-                o.Status = new RuleStatus(Name, amb > Cfg.MaxC
+                o.Status = new RuleStatus(Name, State.SensorParadoEm is { } travado
+                    ? $"O sensor do aparelho marca {travado} °C mesmo após {Cfg.MaxTurboMin} min de turbo; pode estar medindo perto do teto. Mantendo o modo econômico em {Cfg.MaxC} °C, sem novo turbo."
+                    : amb > Cfg.MaxC
                     ? $"{dentro}, acima de {Cfg.MaxC} °C. Esfriando no modo econômico até {Cfg.MaxC} °C."
                     : $"{dentro}. Mantendo {Cfg.MaxC} °C no modo econômico; ao chegar a {Cfg.MinC} °C, {piso}.", null);
                 break;

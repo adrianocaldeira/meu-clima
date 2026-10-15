@@ -54,7 +54,9 @@ opcional; sem ela, vale para qualquer dia e hora. "Só com alguém no PC" pode s
   alvo 24 °C.
 - **Calor forte** — dentro **≥ 26 °C** por 2 min: Frio com ventilação **Turbo** até voltar a 24 °C,
   por no máximo **30 min**. Esgotado o tempo, volta ao Frio econômico e só tenta o turbo de novo
-  depois que dentro chegar à máxima.
+  depois que dentro chegar à máxima, mesmo que você saia e volte ao PC. Se o turbo inteiro passar
+  sem a leitura baixar nem 1 °C, o painel avisa que o sensor do aparelho parece travado (ele fica
+  no aparelho, perto do teto, e pode marcar mais que a altura da mesa).
 - **Na mínima** por 10 min: **só ventila** (compressor desligado, ventilação baixa). Com "Só ventilar"
   desligado, desliga o ar. Volta ao frio quando dentro passar da máxima pelo mesmo tempo; enquanto espera, o painel diz
   desde quando passou e até que horas espera.

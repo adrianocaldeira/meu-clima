@@ -6,6 +6,13 @@ namespace MeuClima.Core.Electrolux;
 /// <summary>Tradução entre o JSON da Electrolux Group API e os modelos do Meu Clima.</summary>
 public static class ElectroluxMapping
 {
+    /// <summary>"ambientTemperatureC=26 ..." de todo campo reportado com "temp" no nome; nada de ID ou série.</summary>
+    public static string TemperatureFields(JsonNode json) =>
+        json["properties"]?["reported"] is JsonObject r
+            ? string.Join(" ", r.Where(p => p.Key.Contains("temp", StringComparison.OrdinalIgnoreCase) && p.Value is JsonValue)
+                .Select(p => $"{p.Key}={p.Value!.ToJsonString()}"))
+            : "";
+
     public static DeviceSnapshot ParseState(string deviceId, JsonNode json, DateTimeOffset readAt)
     {
         var r = json["properties"]?["reported"] ?? new JsonObject();

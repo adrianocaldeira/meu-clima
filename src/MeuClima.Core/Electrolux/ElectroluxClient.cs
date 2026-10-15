@@ -30,6 +30,9 @@ public sealed class ElectroluxClient(HttpClient http, ITokenStore store, TimePro
 
     public TimeSpan RetryBaseDelay { get; init; } = TimeSpan.FromSeconds(2);
 
+    /// <summary>Campos de temperatura do estado reportado, como vieram, para diagnóstico do sensor.</summary>
+    public event Action<string, string>? StateRead;
+
     private readonly SemaphoreSlim _tokenLock = new(1, 1);
     private ElectroluxCredentials? _unsaved;
     private string? _accessToken;
@@ -57,6 +60,7 @@ public sealed class ElectroluxClient(HttpClient http, ITokenStore store, TimePro
     public async Task<DeviceSnapshot> GetStateAsync(string deviceId, CancellationToken ct = default)
     {
         var json = await GetJsonAsync($"/appliances/{Uri.EscapeDataString(deviceId)}/state", ct);
+        StateRead?.Invoke(deviceId, ElectroluxMapping.TemperatureFields(json));
         return ElectroluxMapping.ParseState(deviceId, json, clock.GetUtcNow());
     }
 

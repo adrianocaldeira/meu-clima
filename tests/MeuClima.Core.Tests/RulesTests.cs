@@ -131,6 +131,63 @@ public class ConfortoTests
         Assert.Equal(ConfortoFase.Turbo, r.State.Fase);
     }
 
+    private static ConfortoRule TurboSemBaixar()
+    {
+        var r = Rule();
+        r.Evaluate(Ctx(At(16), 30, Snap(on: false, ambient: 26)));
+        r.Evaluate(Ctx(At(16, 2), 30, Snap(on: false, ambient: 26)));
+        Assert.Equal(ConfortoFase.Turbo, r.State.Fase);
+        r.Evaluate(Ctx(At(16, 33), 30, Snap(fan: FanSpeed.Turbo, ambient: 26)));
+        return r;
+    }
+
+    [Fact]
+    public void Turbo_inteiro_sem_baixar_marca_o_sensor_e_nao_repete_o_turbo()
+    {
+        var r = TurboSemBaixar();
+        Assert.Equal(ConfortoFase.Manter, r.State.Fase);
+
+        var o = r.Evaluate(Ctx(At(17), 30, Snap(ambient: 26)));
+        Assert.Equal(ConfortoFase.Manter, r.State.Fase);
+        Assert.StartsWith("O sensor do aparelho marca 26 °C mesmo após 30 min de turbo", o.Status!.Detail);
+    }
+
+    [Fact]
+    public void Sair_e_voltar_ao_pc_nao_libera_outro_turbo()
+    {
+        var r = TurboSemBaixar();
+        r.Evaluate(Ctx(At(17, 40), 30, Snap(ambient: 26), new PresenceState(true, TimeSpan.FromMinutes(10), Locked: true)));
+
+        r.Evaluate(Ctx(At(17, 45), 30, Snap(ambient: 26)));
+        r.Evaluate(Ctx(At(17, 50), 30, Snap(ambient: 26)));
+
+        Assert.NotEqual(ConfortoFase.Turbo, r.State.Fase);
+    }
+
+    [Fact]
+    public void Ausente_no_comando_nao_libera_outro_turbo()
+    {
+        // Longe do PC, o Ausente (prioridade maior) comanda: o Conforto vê o aparelho bloqueado, não chega a sair.
+        var r = TurboSemBaixar();
+        r.Evaluate(Ctx(At(17, 40), 30, Snap(ambient: 26)) with { Blocked = _ => true });
+
+        r.Evaluate(Ctx(At(17, 45), 30, Snap(ambient: 26)));
+        r.Evaluate(Ctx(At(17, 50), 30, Snap(ambient: 26)));
+
+        Assert.NotEqual(ConfortoFase.Turbo, r.State.Fase);
+        Assert.Equal(26, r.State.SensorParadoEm);
+    }
+
+    [Fact]
+    public void Leitura_que_muda_tira_a_suspeita_do_sensor()
+    {
+        var r = TurboSemBaixar();
+
+        r.Evaluate(Ctx(At(17), 30, Snap(ambient: 25)));
+
+        Assert.Null(r.State.SensorParadoEm);
+    }
+
     private static ConfortoRule Ventilando()
     {
         var r = Rule();

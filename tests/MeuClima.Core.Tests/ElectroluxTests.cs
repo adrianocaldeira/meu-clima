@@ -9,6 +9,16 @@ namespace MeuClima.Core.Tests;
 public class ElectroluxMappingTests
 {
     [Fact]
+    public void Campos_de_temperatura_para_o_log_sem_identificadores()
+    {
+        var t = ElectroluxMapping.TemperatureFields(JsonNode.Parse(TestKit.Fixture("state-xi09r.json"))!);
+
+        Assert.Contains("ambientTemperatureC=25", t);
+        Assert.Contains("targetTemperatureC=23", t);
+        Assert.DoesNotContain("applianceId", t);
+    }
+
+    [Fact]
     public void ParseState_le_o_estado_real_do_XI09R()
     {
         var s = ElectroluxMapping.ParseState("x", JsonNode.Parse(TestKit.Fixture("state-xi09r.json"))!, TestKit.At(12));
