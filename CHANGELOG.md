@@ -6,6 +6,43 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+### Adicionado
+- **Regra "Conforto"**: mantém dentro numa faixa (padrão 23–24 °C) gastando o mínimo. Acima da
+  máxima, Frio econômico com alvo na máxima; na mínima, só ventila (compressor desligado); turbo
+  só a partir de 26 °C e por no máximo 30 min. Liga antes do calor pela sensação térmica prevista.
+  Avisa quando a sensação lá fora está mais fresca que dentro. Não usa o modo Auto, que aquece
+  sozinho; aquecer é opcional e vem desligado. Não troca o aquecimento que você ligou. Durante a
+  pausa por ajuste manual, não avança nem avisa. Ao sair por ausência ou fim da agenda, tira o turbo.
+- **Projeção do custo no mês** nos Insights, pela média dos últimos 7 dias.
+- **Quem manda no aparelho**: no painel da bandeja, cada aparelho mostra quem está no comando e por
+  quê, numa frase: você (com "Retomar agora"), uma regra agindo ("Dentro está 25 °C, acima de 24 °C.
+  Esfriando no modo econômico até 24 °C."), uma regra de olho, em espera ou nenhuma.
+- Menu **⋯** no topo do painel: pausar as regras por 1 h, verificar atualizações e sair.
+
+### Mudado
+- "Conforto" substitui "Esfriar rápido", "Antes do pico" e "Fora mais fresco". As regras antigas
+  migram sozinhas na primeira abertura, mantendo agenda, aparelho, "Só com alguém no PC" e a faixa
+  do "Esfriar rápido". O Conforto fica ligado ou desligado como o "Esfriar rápido" estava.
+- "Saí do PC" passa a se chamar **"Ausente"**. Bloquear a tela ou suspender o PC desliga o ar na
+  hora (ou após N min, configurável). Na volta, as regras ativas decidem se o ar liga; voltar ao
+  ajuste anterior virou opção. Sem uso do PC, alivia em Frio 26 °C, não mais em Auto.
+- "Janela aberta" explica o motivo no painel ("Dentro subiu de 24 para 26 °C com o ar no frio:
+  janela ou porta aberta?") e até quando mantém o ar desligado.
+- O chip "aguardando" virou "enviando ao ar…": o comando foi enviado e a Electrolux leva cerca de
+  30 s para confirmar.
+- Quando a Electrolux recusa a leitura (HTTP 401/403), o aviso diz que pode ser a API key ou o
+  limite de chamadas, e o log registra a resposta para diagnóstico.
+- O insight "Pico previsto de amanhã" usa a sensação térmica, a mesma que o Conforto observa.
+- Energia estimada por modo: só ventilar conta ~40 W, não a potência média do compressor.
+- Fechar a central aberta pelo painel da bandeja volta ao painel.
+- "Sair do Meu Clima" saiu do rodapé do painel e foi para o menu ⋯. O painel ganhou mais espaço
+  entre os blocos.
+
+### Corrigido
+- "Janela aberta" disparava com um salto isolado do sensor; agora a subida precisa aparecer em
+  duas leituras, por pelo menos 3 min. Cancela antes da hora com ajuste manual, ou com o ar religado
+  e dentro abaixo da temperatura que disparou a regra.
+
 ## [0.1.1] — 2026
 
 ### Adicionado

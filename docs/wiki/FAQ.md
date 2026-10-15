@@ -38,6 +38,12 @@ Causas mais comuns:
 
 Solução: gere um novo refresh token no portal e informe no app.
 
+### "A Electrolux recusou a leitura (HTTP 403)"
+
+O 403 vem tanto de API key inválida quanto do limite de chamadas da API. O app tenta de novo em 5 min;
+se o aviso some sozinho, era o limite. Se continuar, confira a API key no portal e informe de novo em
+**Conta e local**. O motivo exato que a Electrolux devolveu fica em `%LocalAppData%\MeuClima\meuclima.log`.
+
 ### Onde ficam minha API key e meu token?
 
 Em `%APPDATA%\MeuClima\`, criptografadas com a **DPAPI** do Windows: só o seu usuário, naquele PC,

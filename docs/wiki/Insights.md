@@ -8,7 +8,7 @@ regras. A tela de insights resume esse histórico. Abra pela central → **Insig
 | Insight | O que mostra |
 |---|---|
 | **Ligado hoje** | Tempo com ar ligado hoje, somando todos os aparelhos, e o total de ontem. |
-| **Energia hoje** | Horas ligado hoje × potência média (padrão 800 W) e o custo pela tarifa (padrão R$ 0,85/kWh). Ajuste os dois em **Ajustes** → **Estimativa de energia**. |
+| **Energia hoje** | Horas com o compressor ligado × potência média (padrão 800 W), mais as horas só ventilando a ~40 W, e o custo pela tarifa (padrão R$ 0,85/kWh). Mostra também a projeção do mês: média dos últimos 7 dias × dias do mês, a partir do primeiro dia de histórico. Ajuste potência e tarifa em **Ajustes** → **Estimativa de energia**. |
 | **Para baixar 1 °C** | Quanto o aparelho do cômodo do PC demora para esfriar o ambiente um grau no Frio: média dos últimos 7 dias, comparada com a dos últimos 30. |
 
 ## Gráfico
@@ -27,13 +27,15 @@ Avisos que aparecem só quando há algo a dizer:
 | **Alerta do aparelho** | O aparelho reportou algum alerta. |
 | **Esfriando mais devagar** | A média de 7 dias para baixar 1 °C está mais de 15% acima da de 30 dias. Costuma ser filtro sujo. |
 | **Mais tempo ligado hoje** | Hoje passou de 30% acima de ontem (com ontem acima de 1 h). |
-| **Pico previsto de amanhã** | A máxima prevista e a hora. Diz se "Antes do pico" vai agir. |
-| **Economia do "Saí do PC"** | Tempo que a regra manteve o ar desligado nos últimos 7 dias, com a energia estimada. Aparece a partir de 30 min. |
+| **Pico previsto de amanhã** | A máxima prevista e a hora. Pela sensação térmica prevista, diz se o "Conforto" vai ligar o ar antes do calor. |
+| **Economia do "Ausente"** | Tempo que a regra manteve o ar desligado nos últimos 7 dias, com a energia estimada. Aparece a partir de 30 min. |
 
 ## Limites
 
 - **Energia é estimativa.** A API da Electrolux não informa consumo. O número vem de horas ligado ×
   potência média, não de medição.
+- **Tarifa:** use o total da conta de luz ÷ kWh do mês. Esse valor já inclui impostos e bandeira
+  tarifária, que mudam de um mês para outro.
 - **Só o que o PC viu.** O histórico só é gravado com o app aberto. Horas com o PC desligado ficam em
   branco; comandos feitos pelo celular nesse período não entram.
 - **Temperatura interna é a do aparelho**, medida perto dele e em graus inteiros.

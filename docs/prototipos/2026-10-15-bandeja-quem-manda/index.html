@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bandeja · quem manda</title>
+<!-- Protótipo estático (15/10/2026), direção A aprovada; B e C rejeitadas e removidas. Tokens e componentes: src/MeuClima/Web/app.css; fontes: fonts.css. -->
+<link rel="stylesheet" href="../../../src/MeuClima/Web/fonts.css">
+<link rel="stylesheet" href="../../../src/MeuClima/Web/app.css">
+<style>
+  body{background:var(--desk);padding:20px 16px 40px}
+  .bar-top{max-width:1240px;margin:0 auto 18px;display:grid;gap:10px}
+  .bar-top h1{font:600 1.15rem var(--display);margin:0}
+  .bar-top p{margin:0;color:var(--ink-2);font-size:.86rem;max-width:880px}
+  .ctl{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+  .ctl .seg{background:var(--panel)}
+  .stage{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:380px minmax(0,1fr);gap:28px;align-items:start}
+  @media (max-width:820px){.stage{grid-template-columns:1fr}}
+  .notes{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:grid;gap:10px;font-size:.86rem;color:var(--ink-2)}
+  .notes h2{font:600 1rem var(--display);color:var(--ink);margin:0}
+  .notes ul{margin:0;padding-left:1.1rem;display:grid;gap:5px}
+  .notes b{color:var(--ink)}
+
+  /* moldura do flyout, igual ao app */
+  .fly{width:380px;max-width:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;position:relative}
+  .whead{display:flex;justify-content:space-between;align-items:center;padding:12px 14px 12px 16px;border-bottom:1px solid var(--line);gap:10px}
+  .whead .ttl{display:grid}
+  .whead b{font:600 .98rem var(--display)}
+  .whead .mono{font-size:.68rem;color:var(--ink-3)}
+  .whead .acts{display:flex;gap:6px;align-items:center}
+  .view{padding:16px;display:flex;flex-direction:column;gap:14px}
+  .foot{display:flex;justify-content:space-between;align-items:center;padding:8px 16px;border-top:1px solid var(--line);background:var(--panel-2)}
+
+  /* menu ⋯ */
+  .menu{position:absolute;right:12px;top:50px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:5px;display:grid;min-width:200px;z-index:5}
+  .menu button{border:0;background:transparent;text-align:left;padding:8px 10px;border-radius:7px;font:500 .84rem var(--body)}
+  .menu button:hover{background:var(--panel-2)}
+  .menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+  .menu .q{color:var(--err)}
+  .ib.sm{width:30px;height:30px;font-size:1rem}
+
+  /* linha "quem manda" (A) */
+  .who{grid-column:2/-1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 10px;border-radius:8px;background:var(--panel-2);border-left:3px solid var(--off);font-size:.8rem}
+  .who .k{font:600 .78rem var(--display);display:block}
+  .who .d{color:var(--ink-2);font:400 .72rem var(--mono);line-height:1.5;display:block}
+  .who.rule{border-left-color:var(--cool);background:var(--cool-soft)} .who.rule .k{color:var(--cool)}
+  .who.watch{border-left-color:var(--cool);border-left-style:dashed}
+  .who.manual{border-left-color:var(--warn);background:var(--warn-soft)} .who.manual .k{color:var(--warn)}
+  .who.block{border-left-color:var(--err);background:var(--err-soft)} .who.block .k{color:var(--err)}
+  .who.night{border-left-color:#7a6cc4}
+  .dev{padding:14px 0;row-gap:9px}
+  .dev .tog{margin-top:-2px}
+
+</style>
+</head>
+<body>
+<div class="bar-top">
+  <h1>Bandeja · quem está mandando no ar</h1>
+  <p>Protótipo estático com dados fictícios. Troque a direção e a situação; o painel ao lado mostra o
+    que cada direção resolve. Os botões do aparelho não mudam nada aqui.</p>
+  <div class="ctl">
+    <div class="seg inline" role="group" aria-label="Direção" id="dir"></div>
+    <div class="seg inline" role="group" aria-label="Tema" id="theme"></div>
+  </div>
+  <div class="ctl"><div class="seg inline" role="group" aria-label="Situação" id="cen" style="flex-wrap:wrap"></div></div>
+</div>
+
+<div class="stage">
+  <div id="fly"></div>
+  <div class="notes" id="notes"></div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+
+  // Situações: o mesmo dado nas três direções. Aparelhos e horários fictícios.
+  const SALA_PARADA = { name: 'Sala', on: false, mode: 'Frio', fan: 'Auto', target: 24, amb: 27,
+    ctrl: { kind: 'none', who: 'Nenhuma regra liga este ar', detail: 'aqui só agem Janela aberta e Modo noite' } };
+  const CEN = {
+    agindo: { label: 'Conforto agindo', devs: [
+      { name: 'Escritório', pc: true, on: true, mode: 'Frio', fan: 'Auto', eco: true, target: 24, amb: 25,
+        ctrl: { kind: 'rule', who: 'Conforto', detail: 'frio econômico em 24 °C · faixa 23–24 °C' } },
+      SALA_PARADA] },
+    olho: { label: 'Conforto de olho', devs: [
+      { name: 'Escritório', pc: true, on: false, mode: 'Frio', fan: 'Auto', target: 24, amb: 24,
+        ctrl: { kind: 'watch', who: 'Conforto de olho', detail: 'liga se passar de 24 °C por 5 min' } },
+      SALA_PARADA] },
+    turbo: { label: 'Turbo', devs: [
+      { name: 'Escritório', pc: true, on: true, mode: 'Frio', fan: 'Turbo', target: 23, amb: 27,
+        ctrl: { kind: 'rule', who: 'Conforto · turbo', detail: 'dentro 27 °C, acima de 26 °C · turbo até 24 °C · no máximo até 14:35' } },
+      SALA_PARADA] },
+    manual: { label: 'Você mudou', devs: [
+      { name: 'Escritório', pc: true, on: true, mode: 'Frio', fan: 'Alta', target: 21, amb: 24,
+        ctrl: { kind: 'manual', who: 'Você', detail: 'mudou às 14:05 · regras voltam às 15:05', action: 'Retomar agora' } },
+      SALA_PARADA] },
+    janela: { label: 'Janela aberta', devs: [
+      { name: 'Escritório', pc: true, on: false, mode: 'Frio', fan: 'Auto', target: 24, amb: 26,
+        ctrl: { kind: 'block', who: 'Janela aberta', detail: 'dentro subiu de 24 para 26 °C com o ar no frio · desligado até 15:20 ou até você religar' } },
+      SALA_PARADA] },
+    noite: { label: 'Modo noite', devs: [
+      { name: 'Escritório', pc: true, on: false, mode: 'Frio', fan: 'Auto', target: 24, amb: 23,
+        ctrl: { kind: 'none', who: 'Ninguém no PC', detail: 'Conforto só age com alguém no PC' } },
+      { name: 'Sala', on: true, mode: 'Frio', fan: 'Baixa', target: 26, amb: 25,
+        ctrl: { kind: 'night', who: 'Modo noite', detail: '26 °C, sobe 1 °C por hora · desliga às 02:00' } }] },
+  };
+
+  const DIR = {
+    A: { label: 'A · Linha no aparelho', render: renderA, notes: `
+      <h2>A · Linha "quem manda" dentro de cada aparelho</h2>
+      <ul>
+        <li><b>Ponto 3:</b> cada aparelho ganha uma linha com quem está no comando e por quê. Some o cartão
+          de regra solto no topo: a explicação fica junto do ar que ela afeta.</li>
+        <li>Cores: azul = regra agindo; azul tracejado = regra de olho; âmbar = você; vermelho = regra
+          segurando o ar desligado; cinza = nada age.</li>
+        <li><b>Ponto 1:</b> menu <b>⋯</b> ao lado de "Abrir central", com "Sair do Meu Clima". Sair fica a
+          um clique a mais, longe de um clique sem querer.</li>
+        <li><b>Ponto 4:</b> mais respiro: 14 px entre blocos, 14 px por aparelho, chips e linha separados
+          da temperatura.</li>
+        <li>Menor mudança no código: reaproveita a lista atual.</li>
+      </ul>` },
+  };
+
+  const S = { dir: 'A', cen: 'agindo', menu: false, quit: false, theme: 'system' };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  const wx = () => `<div class="wx">
+    <div><span class="lbl">Fora</span><span class="v tnum">29 °C</span><span class="s tnum">sente 31° · 48%</span></div>
+    <div><span class="lbl">Escritório</span><span class="v tnum">${CEN[S.cen].devs[0].amb} °C</span><span class="s">cômodo do PC</span></div>
+    <div><span class="lbl">Pico hoje</span><span class="v tnum">32 °C</span><span class="s">às 15h · sente 34°</span></div></div>`;
+
+  const meta = d => d.on ? `${d.mode.toLowerCase()} · ${d.fan.toLowerCase()}${d.eco ? ' · econômico' : ''} · amb&nbsp;${d.amb}&nbsp;°C` : `desligado · amb&nbsp;${d.amb}&nbsp;°C`;
+  const ctrlT = d => `<div class="t"><button class="ib" aria-label="Diminuir">−</button><span class="v tnum${d.on ? '' : ' off'}">${d.target}</span><button class="ib" aria-label="Aumentar">+</button><button class="pwr" aria-pressed="${d.on}" aria-label="Ligar ${esc(d.name)}"></button></div>`;
+  const dot = d => d.on ? 'on' : '';
+
+  function head() {
+    const upd = `<div class="ttl"><b>Meu Clima</b><span class="mono tnum">atualizado 14:12</span></div>`;
+    return `<div class="whead">${upd}<div class="acts"><button class="btn">Abrir central</button>
+      <button class="ib sm" data-menu aria-label="Mais opções" aria-expanded="${S.menu}">⋯</button></div></div>
+      ${S.menu ? `<div class="menu" role="menu"><button>Pausar todas as regras por 1 h</button><button>Verificar atualizações</button><hr><button class="q">Sair do Meu Clima</button></div>` : ''}`;
+  }
+  const foot = (txt = 'clima de 14:00 · Open-Meteo') => `<div class="foot"><span class="mono small muted">${txt}</span></div>`;
+
+  function renderA(c) {
+    const devs = c.devs.map(d => `<div class="dev"><span class="dot ${dot(d)}"></span>
+      <div style="min-width:0"><div class="n">${esc(d.name)}</div><div class="m tnum">${meta(d)}</div></div>${ctrlT(d)}
+      <div class="who ${d.ctrl.kind}"><div><span class="k">${esc(d.ctrl.who)}</span><span class="d">${esc(d.ctrl.detail)}</span></div>
+        ${d.ctrl.action ? `<button class="link">${esc(d.ctrl.action)}</button>` : '<span></span>'}</div>
+      <button class="link tog">Mais ajustes</button></div>`).join('');
+    return `<div class="fly">${head('A')}<div class="view">${wx()}<div>${devs}</div></div>${foot()}</div>`;
+  }
+
+  function seg(el, opts, cur, key) {
+    $(el).innerHTML = opts.map(([v, t]) => `<button data-${key}="${v}" aria-pressed="${v === cur}">${esc(t)}</button>`).join('');
+  }
+  function render() {
+    seg('dir', Object.entries(DIR).map(([k, d]) => [k, d.label]), S.dir, 'dir');
+    seg('cen', Object.entries(CEN).map(([k, c]) => [k, c.label]), S.cen, 'cen');
+    seg('theme', [['system', 'Sistema'], ['light', 'Claro'], ['dark', 'Escuro']], S.theme, 'theme');
+    $('fly').innerHTML = DIR[S.dir].render(CEN[S.cen]);
+    $('notes').innerHTML = DIR[S.dir].notes + `<h2>Também</h2><ul>
+      <li><b>Ponto 2:</b> a central aberta pela bandeja, ao fechar, reabre a bandeja. É comportamento da
+        janela, independe do layout.</li>
+      <li>"Conforto de olho" é novo: hoje o Conforto parado não diz nada. Passa a mostrar o que faria
+        a seguir, sem mexer no ar.</li></ul>`;
+  }
+
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.dir) { S.dir = b.dataset.dir; S.menu = S.quit = false; }
+    else if (b.dataset.cen) S.cen = b.dataset.cen;
+    else if (b.dataset.theme) { S.theme = b.dataset.theme; if (S.theme === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.dataset.theme = S.theme; }
+    else if ('menu' in b.dataset) S.menu = !S.menu;
+    else if ('quit' in b.dataset) S.quit = !S.quit;
+    else { if (S.menu || S.quit) { S.menu = S.quit = false; } else return; }
+    render();
+  });
+  render();
+})();
+</script>
+</body>
+</html>

@@ -73,7 +73,7 @@ Seguimos [Conventional Commits](https://www.conventionalcommits.org/pt-br/) em p
 Exemplos:
 
 ```
-feat(Regras): "Antes do pico" usa a previsão horária do Open-Meteo
+feat(Regras): "Conforto" antecipa pela sensação térmica prevista
 fix(Electrolux): salva o refresh token rotacionado antes de usar o novo access token
 refactor(Bandeja): menu de contexto vira lista de ações
 chore: release v0.2.0
@@ -112,7 +112,8 @@ Para subir versão antes de release:
 .\scripts\bump-version.ps1 0.2.0
 ```
 
-O script edita só `Directory.Build.props` (fonte única da versão); o `.csproj`, o instalador e o
+O script edita `Directory.Build.props` (fonte única da versão) e, sem `-NoCommit`, cria commit e tag
+locais; o `.csproj`, o instalador e o
 verificador de atualizações derivam dali.
 
 ## Dúvidas?

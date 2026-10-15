@@ -51,22 +51,23 @@ com a API da Electrolux e com o Open-Meteo.
 
 | | | |
 |---|---|---|
-| 🧊 **Controle rápido** pela bandeja: ligar, desligar, temperatura, modo, ventilação e timer, em todos os aparelhos da conta | 🌤️ **Clima externo** via [Open-Meteo](https://open-meteo.com/): agora e previsão | 🤖 **6 regras automáticas** que você liga, desliga e configura |
-| 📊 **Insights**: horas ligado, energia estimada, tempo para esfriar, gráfico fora × dentro | 🪟 **Inicia com o Windows** (você escolhe ao instalar) | 🔄 **Atualização automática** com verificação de integridade |
+| 🧊 **Controle rápido** pela bandeja: ligar, desligar, temperatura, modo, ventilação e timer, em todos os aparelhos da conta | 🌤️ **Clima externo** via [Open-Meteo](https://open-meteo.com/): agora e previsão | 🤖 **4 regras automáticas** que você liga, desliga e configura |
+| 📊 **Insights**: horas ligado, energia e custo estimados (com projeção do mês), tempo para esfriar, gráfico fora × dentro | 🪟 **Inicia com o Windows** (você escolhe ao instalar) | 🔄 **Atualização automática** com verificação de integridade |
 | 🇧🇷 **100% em português** · tema claro, escuro ou do sistema | 🔒 **Credenciais só no seu PC**, protegidas pelo Windows (DPAPI) | 📦 **Single-file `.exe`** self-contained |
 
 ### Regras automáticas
 
 | Regra | Em uma frase |
 |---|---|
-| **Esfriar rápido** | Fora a partir de 24 °C e você no PC: Turbo até 22 °C, depois mantém em 24 °C. Agenda por dia e horário opcional. |
-| **Saí do PC** | Tela bloqueada ou sem uso: economia aos 20 min, desliga aos 60, restaura na volta. |
-| **Antes do pico** | Previsão de ≥ 32 °C hoje: liga o ar desligado 30 min antes da primeira hora com essa previsão. |
-| **Janela aberta** | Ligado em Frio e o ambiente esquentando: desliga e avisa. |
+| **Conforto** | Mantém dentro entre 23 e 24 °C: Frio econômico, só ventila na mínima, turbo só no calor forte. Liga antes do calor pela sensação térmica prevista. |
+| **Ausente** | Tela bloqueada ou PC suspenso: desliga na hora (fora da pausa por ajuste manual). Sem uso: alivia aos 20 min, desliga aos 60. Na volta, as regras decidem. |
+| **Janela aberta** | Ligado em Frio e o ambiente esquentando sem voltar: desliga, avisa e diz o motivo. |
 | **Modo noite** | Timer de 4 h no próprio aparelho e +1 °C por hora. |
-| **Fora mais fresco** | Lá fora 3 °C mais fresco que dentro: avisa para desligar e abrir a janela. |
 
-Mexeu à mão (no app, no controle ou no celular)? As automações daquele aparelho pausam por 60 min.
+No painel da bandeja, cada aparelho mostra numa frase quem está no comando e por quê: você, uma regra
+agindo, uma regra de olho ou em espera. Mexeu à mão (no app, no controle ou no celular)? As automações
+daquele aparelho pausam por 60 min; "Retomar agora" encerra a pausa. O menu **⋯** do painel pausa todas
+as regras por 1 h, verifica atualizações e encerra o app.
 Detalhes e limites de cada uma na [Wiki → Regras](https://github.com/adrianocaldeira/meu-clima/wiki/Regras).
 
 ## 📥 Instalação
@@ -119,7 +120,7 @@ O Meu Clima usa a API oficial com **as suas** credenciais. Ninguém além de voc
 1. **Clique no ícone da bandeja** para ver o estado do ar, o clima lá fora e o controle rápido.
 2. **Clique direito** no ícone para abrir a central, as regras, ligar ou desligar o início com o Windows,
    verificar atualizações ou sair.
-3. **Revise as regras.** Ao terminar a configuração, o app cria as seis regras já ligadas. Desligue as
+3. **Revise as regras.** Ao terminar a configuração, o app cria as regras já ligadas. Desligue as
    que não servem para a sua rotina e ajuste os valores das outras.
 4. **Veja os insights** depois de alguns dias de uso.
 5. **Deixe "Iniciar com o Windows" ligado** se quiser as regras sempre ativas quando você estiver no PC.
@@ -138,12 +139,14 @@ Detalhes na [Wiki/Arquitetura](https://github.com/adrianocaldeira/meu-clima/wiki
 
 ## 🗺️ Roadmap
 
-### ✅ Já entregue (v0.1.0)
+### ✅ Já entregue (v0.2.0)
 - Controle do ar-condicionado Electrolux pela bandeja, para todos os aparelhos da conta
 - Clima externo e previsão do dia via Open-Meteo
-- 6 regras automáticas, cada uma ligada a um aparelho, com pausa de 1 hora após ajuste manual
-- Agenda por dias da semana e horário no "Esfriar rápido"; horário diário no "Modo noite"
-- Insights de uso, com gráfico fora × dentro de 24 h ou 7 dias
+- 4 regras automáticas: Conforto, Ausente, Janela aberta e Modo noite; as da v0.1 migram sozinhas
+- Cada regra ligada a um aparelho, com pausa de 1 hora após ajuste manual
+- Painel da bandeja mostra quem está no comando de cada aparelho e por quê
+- Agenda por dias e horário no Conforto; horário diário no Modo noite
+- Insights de uso com projeção do custo no mês e gráfico fora × dentro de 24 h ou 7 dias
 - Tema claro, escuro ou do sistema (segue o Windows)
 - Início com o Windows
 - Atualização automática com verificação de integridade
@@ -164,21 +167,14 @@ O Meu Clima não coleta dados de uso. Ele só fala com a Electrolux (sua conta),
 (coordenadas da cidade que você escolheu) e com o GitHub (procurar versão nova, desligável em
 **Ajustes**). Telas e fontes vêm de dentro do app. Detalhes em [PRIVACIDADE.md](PRIVACIDADE.md).
 
-## Code signing policy
+## 🔏 Assinatura e integridade
 
-Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
-[SignPath Foundation](https://signpath.org/).
+Os executáveis ainda não têm assinatura digital, por isso o Windows SmartScreen pode avisar na
+primeira execução (veja o [FAQ](docs/wiki/FAQ.md)).
 
-As versões assinadas são compiladas pelo GitHub Actions a partir deste repositório
-([`release.yml`](.github/workflows/release.yml)), e cada assinatura é aprovada manualmente.
-
-| Role | Quem |
-|---|---|
-| Committers and reviewers (commit sem revisão adicional; revisam pull requests de terceiros) | [@adrianocaldeira](https://github.com/adrianocaldeira) |
-| Approvers (aprovam cada assinatura) | [@adrianocaldeira](https://github.com/adrianocaldeira) |
-
-Privacidade: o programa não transfere informação para outros sistemas além dos descritos em
-[PRIVACIDADE.md](PRIVACIDADE.md), todos acionados pelo uso que você faz do app.
+Cada versão é compilada pelo GitHub Actions a partir deste repositório
+([`release.yml`](.github/workflows/release.yml)), nunca numa máquina pessoal. A página da release
+mostra o SHA-256 de cada arquivo; o atualizador do app confere esse valor antes de instalar.
 
 ## 📄 Licença
 

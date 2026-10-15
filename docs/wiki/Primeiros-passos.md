@@ -49,14 +49,17 @@ cidade na configuração. Ela só é usada para consultar o tempo.
 
 ## 4. Diga em qual cômodo fica o PC
 
-Ainda na configuração, escolha o aparelho do cômodo onde fica este PC. "Saí do PC", "Esfriar rápido"
-e "Antes do pico" agem nesse aparelho.
+Ainda na configuração, escolha o aparelho do cômodo onde fica este PC. "Conforto" e "Ausente" agem
+nesse aparelho.
 
 ## 5. Teste o controle
 
 Pelo ícone da bandeja:
 
-- **Clique** — abre o painel com o estado atual do ar, o clima lá fora e o controle rápido.
+- **Clique** — abre o painel com o estado atual do ar, o clima lá fora e o controle rápido. Abaixo de
+  cada aparelho, uma linha diz quem está no comando e por quê: você, uma regra agindo, uma regra de olho,
+  uma regra em espera (você longe do PC, fora da agenda, ar em Quente) ou nenhuma. O menu **⋯** no topo pausa as regras por 1 h, verifica atualizações e encerra o app.
+  Fechar a central aberta pelo painel volta ao painel.
 - **Clique direito** — menu para abrir a central, as regras, ligar ou desligar o início com o
   Windows, verificar atualizações e sair.
 
@@ -64,13 +67,13 @@ Mude a temperatura e confira no app Electrolux do celular que o comando chegou.
 
 ## 6. Revise as regras
 
-Ao concluir a configuração, o app cria as seis regras **já ligadas**. Abra a central → **Regras**,
+Ao concluir a configuração, o app cria as regras **já ligadas**. Abra a central → **Regras**,
 desligue as que não fazem sentido para você e ajuste os valores das outras.
 
-Se preferir começar devagar, deixe só estas ligadas:
+As duas que fazem o grosso do trabalho:
 
-- **[Saí do PC](Regras#saí-do-pc)** — economiza quando você se afasta.
-- **[Antes do pico](Regras#antes-do-pico)** — chega à tarde com o ambiente já fresco.
+- **[Conforto](Regras#conforto)** — mantém dentro entre 23 e 24 °C gastando o mínimo.
+- **[Ausente](Regras#ausente)** — desliga o ar quando você bloqueia a tela ou se afasta do PC.
 
 Explicação de todas em [[Regras]].
 

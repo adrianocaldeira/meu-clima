@@ -32,7 +32,8 @@ O app consulta a release mais recente no GitHub:
 1. **Automaticamente, em silêncio**: ~10 s depois de iniciar e depois a cada 30 minutos enquanto está
    aberto. Se houver versão nova, avisa uma vez pela bandeja com o resumo das novidades. Para
    instalar, abra a central → **Ajustes** → **Instalar versão X.Y.Z**.
-2. **Manualmente**, pelo menu do ícone da bandeja → **Verificar atualizações**, ou pelo botão
+2. **Manualmente**, pelo menu do ícone da bandeja ou pelo menu **⋯** do painel → **Verificar
+   atualizações**, ou pelo botão
    **Verificar atualização** em Ajustes.
 
 ### Versão instalada (via instalador)
