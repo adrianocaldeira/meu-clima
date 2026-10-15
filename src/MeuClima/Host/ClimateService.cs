@@ -256,11 +256,12 @@ public sealed class ClimateService : IDisposable
             foreach (var c in cmds)
             {
                 var r = await _electrolux.SendAsync(deviceId, c, ct);
-                // Logo após trocar de modo (ex.: sair de Ventilar), a nuvem ainda vê o modo antigo e recusa o alvo.
-                if (!r.Ok && r.Outcome == CommandOutcome.Rejected && c is DeviceCommand.SetTarget
-                    && enviados.Any(x => x is DeviceCommand.SetMode) && origem != UserOrigin)
+                // Logo após trocar modo ou ventilação, a nuvem ainda vê o estado antigo e recusa o que depende dele
+                // (alvo em Ventilar, econômico em Turbo).
+                if (!r.Ok && r.Outcome == CommandOutcome.Rejected && origem != UserOrigin
+                    && enviados.Any(x => x is DeviceCommand.SetMode or DeviceCommand.SetFan))
                 {
-                    Log.Write($"{origem}: alvo adiado em {NameOf(deviceId)}, aparelho ainda trocando de modo: {r.Detail}");
+                    Log.Write($"{origem}: {c} adiado em {NameOf(deviceId)}, aparelho ainda trocando de modo: {r.Detail}");
                     resultado = SendResult.Deferred;
                     break;
                 }
