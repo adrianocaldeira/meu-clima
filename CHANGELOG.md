@@ -6,6 +6,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+## [0.2.0] — 2026
+
 ### Adicionado
 - **Regra "Conforto"**: mantém dentro numa faixa (padrão 23–24 °C) gastando o mínimo. Acima da
   máxima, Frio econômico com alvo na máxima; na mínima, só ventila (compressor desligado); turbo
@@ -90,6 +92,7 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
   portable abre a página da release.
 - Instalador (Inno Setup), sem exigir administrador.
 
-[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.1.1...HEAD
+[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.0
 [0.1.1]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.1.1
 [0.1.0]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.1.0
