@@ -6,6 +6,19 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+## [0.2.3] — 2026
+
+### Corrigido
+- Sair e voltar ao PC liberava um novo turbo do "Conforto" mesmo depois de o turbo anterior ter
+  esgotado os 30 min sem esfriar.
+- Turbo inteiro sem a leitura de dentro baixar 1 °C: o "Conforto" não repete o turbo e o painel
+  avisa que o sensor do aparelho parece travado.
+- Qualquer ajuste de regra recusado logo após outro ajuste aceito no mesmo envio (ex.: turbo
+  recusado logo após desligar o modo econômico) é reenviado no ciclo seguinte, sem aviso.
+
+### Mudado
+- O log registra os campos de temperatura que a Electrolux devolve, quando mudam.
+
 ## [0.2.2] — 2026
 
 ### Corrigido
@@ -115,7 +128,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
   portable abre a página da release.
 - Instalador (Inno Setup), sem exigir administrador.
 
-[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.2.2...HEAD
+[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.3
 [0.2.2]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.2
 [0.2.1]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.1
 [0.2.0]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.0
