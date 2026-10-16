@@ -55,6 +55,18 @@ public class AlgoritmoTests
     }
 
     [Fact]
+    public void Bloqueado_mostra_o_que_faria_sem_registrar_troca_de_fase()
+    {
+        var r = Conforto();
+        var bloqueado = Ctx(At(14), 30, Snap(on: true, mode: AcMode.FanOnly, ambient: 24)) with { Blocked = _ => true };
+
+        var o = r.Evaluate(bloqueado);
+
+        Assert.NotEmpty(o.Claims);
+        Assert.Empty(o.Traces);
+    }
+
+    [Fact]
     public void Leitura_isolada_do_outro_lado_nao_zera_a_contagem()
     {
         var r = Conforto();

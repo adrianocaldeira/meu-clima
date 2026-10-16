@@ -165,12 +165,14 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
         if (ctx.IsBlocked(Cfg.DeviceId))
         {
             // Bloqueado, a fase avançaria sem comando (aviso falso, turbo e antecipação gastos à toa).
-            // Avalia do zero só para mostrar o que faria, e descarta o estado e os avisos.
+            // Avalia do zero só para mostrar o que faria, e descarta o estado, os avisos e o rastro
+            // (a prévia sempre parte de Parado e logaria a mesma troca de fase a cada ciclo).
             var guardado = Recomeco(State);
             Reiniciar();
             var previa = Avaliar(o, ctx, dev);
             previa.Notifications.Clear();
             previa.Observed.Clear();
+            previa.Traces.Clear();
             State = guardado;
             return previa;
         }

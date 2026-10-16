@@ -6,6 +6,10 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+### Corrigido
+- Com o Modo noite ou uma pausa manual no comando, o log registrava a mesma troca de fase do
+  "Conforto" a cada 5 s.
+
 ## [0.3.0] — 2026
 
 ### Adicionado
