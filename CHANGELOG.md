@@ -9,6 +9,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 ### Corrigido
 - Com o Modo noite ou uma pausa manual no comando, o log registrava a mesma troca de fase do
   "Conforto" a cada 5 s.
+- Com o timer zerado ou mudado por você, o "Modo noite" ainda dizia "Desliga em h:mm" (quem desliga é o
+  timer, e o app não reprograma). Só ventilando, prometia subir um alvo que esse modo não usa.
 
 ## [0.3.0] — 2026
 

@@ -742,9 +742,16 @@ public sealed class ModoNoiteRule(ModoNoiteConfig cfg) : Rule<ModoNoiteConfig, M
         o.Claim(Cfg.DeviceId, [.. cmds]);
         var restante = TimeSpan.FromHours(Cfg.DurationHours) - decorrido;
         var cada = Cfg.StepEveryMin == 60 ? "hora" : $"{Cfg.StepEveryMin} min";
-        o.Status = new RuleStatus(Name, dev.Mode == AcMode.Heat
-                ? $"Aquecendo em {alvo} °C, sem subir o alvo. Desliga em {restante:h\\:mm}."
-                : $"Em {alvo} °C, subindo {Cfg.StepC} °C a cada {cada} para você não sentir frio. Desliga em {restante:h\\:mm}.",
+        // Timer mexido por você: o Modo noite não desliga o ar, então não promete horário.
+        var desliga = !State.TimerEnviado || State.TimerDoModoNoite ? $"Desliga em {restante:h\\:mm}."
+            : dev.StopTimeSeconds is > 0 ? "Desliga pelo timer que você programou."
+            : "Você zerou o timer: o ar não desliga sozinho.";
+        o.Status = new RuleStatus(Name, dev.Mode switch
+            {
+                AcMode.Heat => $"Aquecendo em {alvo} °C, sem subir o alvo. {desliga}",
+                AcMode.FanOnly => $"Só ventilando: sem alvo para subir. {desliga}",
+                _ => $"Em {alvo} °C, subindo {Cfg.StepC} °C a cada {cada} para você não sentir frio. {desliga}",
+            },
             decorrido.TotalHours / Cfg.DurationHours);
         return o;
     }

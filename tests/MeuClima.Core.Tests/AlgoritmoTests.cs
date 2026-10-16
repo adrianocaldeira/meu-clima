@@ -197,6 +197,19 @@ public class AlgoritmoTests
         var o = r.Evaluate(Ctx(At(23, 30), 20, Snap(target: 24, ambient: 24)));
 
         Assert.DoesNotContain(o.Claims[Dev], c => c is SetStopTimer);
+        Assert.Contains("não desliga sozinho", o.Status!.Detail);
+        Assert.DoesNotContain("Desliga em", o.Status.Detail);
+    }
+
+    [Fact]
+    public void Modo_noite_so_ventilando_nao_promete_subir_o_alvo()
+    {
+        var r = new ModoNoiteRule(new ModoNoiteConfig(Dev));
+        r.Activate(At(22), 24);
+
+        var o = r.Evaluate(Ctx(At(23, 30), 20, Snap(mode: AcMode.FanOnly, target: 24, ambient: 24)));
+
+        Assert.StartsWith("Só ventilando", o.Status!.Detail);
     }
 
     [Fact]
