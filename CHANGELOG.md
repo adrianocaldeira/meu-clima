@@ -6,6 +6,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+## [0.2.4] — 2026
+
 ### Corrigido
 - Desligar, suspender o PC ou sair da sessão deixava o ar ligado. O "Ausente" agora desliga o ar
   nesse momento, com um único comando. Não desliga com ajuste manual em vigor ou Modo noite ativo, e
@@ -146,7 +148,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
   portable abre a página da release.
 - Instalador (Inno Setup), sem exigir administrador.
 
-[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.2.3...HEAD
+[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.4
 [0.2.3]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.3
 [0.2.2]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.2
 [0.2.1]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.1

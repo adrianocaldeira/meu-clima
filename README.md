@@ -60,7 +60,7 @@ com a API da Electrolux e com o Open-Meteo.
 | Regra | Em uma frase |
 |---|---|
 | **Conforto** | Mantém dentro entre 23 e 24 °C: Frio econômico, só ventila na mínima, turbo só no calor forte. Liga antes do calor pela sensação térmica prevista. |
-| **Ausente** | Tela bloqueada ou PC suspenso: desliga na hora (fora da pausa por ajuste manual). Sem uso: alivia aos 20 min, desliga aos 60. Na volta, as regras decidem. |
+| **Ausente** | Tela bloqueada, PC suspenso ou desligando: desliga na hora (fora da pausa por ajuste manual). Sem uso: alivia aos 20 min, desliga aos 60. Na volta, as regras decidem. |
 | **Janela aberta** | Ligado em Frio e o ambiente esquentando sem voltar: desliga, avisa e diz o motivo. |
 | **Modo noite** | Timer de 4 h no próprio aparelho e +1 °C por hora. |
 
