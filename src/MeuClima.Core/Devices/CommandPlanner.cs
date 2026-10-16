@@ -49,4 +49,34 @@ public static class CommandPlanner
         }
         return result;
     }
+
+    /// <summary>Ajusta ao que o aparelho declara aceitar: alvo dentro da faixa; ventilação fora da lista sai; modo fora da lista cancela o plano.</summary>
+    /// <remarks>Sem o modo, o resto do plano ligaria o ar no último modo usado (em geral Frio).</remarks>
+    public static IReadOnlyList<DeviceCommand> Fit(IReadOnlyList<DeviceCommand> plan, DeviceCapabilities? caps, out IReadOnlyList<DeviceCommand> dropped)
+    {
+        dropped = [];
+        if (caps is null) return plan;
+        var fora = new List<DeviceCommand>();
+        var result = new List<DeviceCommand>();
+        foreach (var c in plan)
+        {
+            switch (c)
+            {
+                case DeviceCommand.SetMode m when caps.Modes.Count > 0 && !caps.Modes.Contains(m.Mode):
+                case DeviceCommand.SetFan f when caps.FanSpeeds.Count > 0 && !caps.FanSpeeds.Contains(f.Fan):
+                    fora.Add(c);
+                    break;
+                case DeviceCommand.SetTarget t when caps.MinTargetC < caps.MaxTargetC
+                                                  && (t.TargetC < caps.MinTargetC || t.TargetC > caps.MaxTargetC):
+                    fora.Add(c);
+                    result.Add(new DeviceCommand.SetTarget(Math.Clamp(t.TargetC, caps.MinTargetC, caps.MaxTargetC)));
+                    break;
+                default:
+                    result.Add(c);
+                    break;
+            }
+        }
+        dropped = fora;
+        return fora.Any(c => c is DeviceCommand.SetMode) ? [] : result;
+    }
 }

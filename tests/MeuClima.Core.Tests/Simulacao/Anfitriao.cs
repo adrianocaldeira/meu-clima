@@ -20,6 +20,7 @@ internal sealed class Anfitriao
     private readonly Dictionary<(string, string), DateTimeOffset> _esperaRecusa = [];
     private readonly List<DeviceSnapshot> _sessao = [];
     private DateTimeOffset? _pausaAte;
+    private readonly HashSet<DateTimeOffset> _confortoPreso = [];
 
     public Anfitriao(IReadOnlyList<RuleConfig> configs, Func<RuleConfig, IRule>? criar = null)
     {
@@ -83,6 +84,7 @@ internal sealed class Anfitriao
                 _pausaAte = now + RuleEngine.ManualPause;
             Leituras[atual.Id] = atual;
             _sessao.Add(atual);
+            if (_pausaAte > now || _esperaRecusa.GetValueOrDefault((atual.Id, "Conforto")) > now) _confortoPreso.Add(atual.ReadAt);
             Historico.All.Add(new HistorySample(now, atual.Connected, atual.On, atual.Mode, atual.AmbientC, atual.TargetC));
             Historico.All.RemoveAll(s => s.Time < now.AddHours(-3));
         }
@@ -118,6 +120,9 @@ internal sealed class Anfitriao
         var cfg = Conforto;
         if (RegraConforto?.State.Fase is ConfortoFase.Manter or ConfortoFase.Turbo && leitura.On && AbaixoDaMinimaHa(cfg) > TimeSpan.FromMinutes(12))
             Falha($"Conforto esfriando com dentro abaixo de {cfg.MinC} °C há {AbaixoDaMinimaHa(cfg).TotalMinutes:0} min");
+        // Dois ciclos de folga: o comando sai na avaliação seguinte e o aparelho muda na leitura depois.
+        if (TurboNasUltimas2h(now) > TimeSpan.FromMinutes(cfg.MaxTurboMin + 2))
+            Falha($"turbo por {TurboNasUltimas2h(now).TotalMinutes:0} min nas últimas 2 h");
         if (r.Commands.Count == 0) return;
 
         if (now - leitura.ReadAt > LeituraVelha)
@@ -135,7 +140,47 @@ internal sealed class Anfitriao
             }
             if (p.Commands.Contains(new SetFan(FanSpeed.Turbo)) && leitura.Fan != FanSpeed.Turbo && !Sustentado(a => a >= cfg.TurboFromC))
                 Falha($"turbo sem calor forte sustentado (dentro {leitura.AmbientC}; {Trilha()})");
+            if (p.RuleName == "Conforto" && CompressorTroca(p.Commands, leitura) is { } liga && UltimaTrocaDoCompressor(liga) is { } ha && ha < ConfortoRule.CicloMinimo)
+                Falha($"Conforto {(liga ? "ligou" : "desligou")} o compressor {ha.TotalMinutes:0.#} min depois da última troca");
         }
+    }
+
+    private static bool Compressor(bool on, AcMode mode) => on && mode is AcMode.Cool or AcMode.Heat or AcMode.Auto or AcMode.Dry;
+
+    /// <summary>true se o plano liga o compressor, false se desliga, null se não muda.</summary>
+    private static bool? CompressorTroca(IReadOnlyList<DeviceCommand> plano, DeviceSnapshot leitura)
+    {
+        var on = plano.OfType<Power>().LastOrDefault()?.On ?? leitura.On;
+        var modo = plano.OfType<SetMode>().LastOrDefault()?.Mode ?? leitura.Mode;
+        var antes = Compressor(leitura.On, leitura.Mode);
+        var depois = Compressor(on, modo);
+        return antes == depois ? null : depois;
+    }
+
+    /// <summary>Tempo desde que o compressor ficou no estado atual (o oposto de <paramref name="liga"/>).</summary>
+    private TimeSpan? UltimaTrocaDoCompressor(bool liga)
+    {
+        var lidas = _sessao.Where(s => s.Connected).ToList();
+        for (var i = lidas.Count - 1; i > 0; i--)
+        {
+            // Sem leitura por mais que a lacuna, o momento da troca é desconhecido.
+            if (lidas[i].ReadAt - lidas[i - 1].ReadAt > ConfortoRule.Lacuna) return null;
+            if (Compressor(lidas[i - 1].On, lidas[i - 1].Mode) == liga && Compressor(lidas[i].On, lidas[i].Mode) != liga)
+                return lidas[^1].ReadAt - lidas[i].ReadAt;
+        }
+        return null;
+    }
+
+    /// <summary>Turbo nas últimas 2 h em trechos que o Conforto podia mudar: sem pausa manual, recusa ou lacuna.</summary>
+    private TimeSpan TurboNasUltimas2h(DateTimeOffset now)
+    {
+        var total = TimeSpan.Zero;
+        var lidas = _sessao.Where(s => s.ReadAt >= now - ConfortoRule.JanelaTurbo).ToList();
+        for (var i = 1; i < lidas.Count; i++)
+            if (lidas[i - 1].On && lidas[i - 1].Fan == FanSpeed.Turbo && !_confortoPreso.Contains(lidas[i - 1].ReadAt)
+                && lidas[i].ReadAt - lidas[i - 1].ReadAt <= TimeSpan.FromMinutes(2))
+                total += lidas[i].ReadAt - lidas[i - 1].ReadAt;
+        return total;
     }
 
     /// <summary>PC desligando ou suspendendo: o que o app desligaria agora.</summary>
@@ -144,11 +189,21 @@ internal sealed class Anfitriao
 
     private static string Lista(EngineResult r) => string.Join("; ", r.Commands.Select(p => $"{p.RuleName}: {string.Join(", ", p.Commands)}"));
 
-    /// <summary>Leituras seguidas, sem lacuna, que mostram a condição por pelo menos 2 min.</summary>
+    /// <summary>Condição por pelo menos 2 min, sem lacuna, com a leitura atual do lado dela. Depois de duas leituras do
+    /// lado, uma isolada do outro lado não corta o trecho; duas seguidas cortam.</summary>
     private bool Sustentado(Func<int, bool> condicao)
     {
-        var trecho = TrechoFinal(s => s.AmbientC is { } a && condicao(a));
-        return trecho.Count >= 2 && trecho[^1].ReadAt - trecho[0].ReadAt >= TimeSpan.FromMinutes(2);
+        DateTimeOffset? desde = null, anterior = null;
+        int lado = 0, contra = 0;
+        foreach (var s in _sessao.Where(s => s.Connected))
+        {
+            if (anterior is { } a && s.ReadAt - a > ConfortoRule.Lacuna) (desde, lado, contra) = (null, 0, 0);
+            anterior = s.ReadAt;
+            if (s.AmbientC is { } x && condicao(x)) (desde, lado, contra) = (desde ?? s.ReadAt, lado + 1, 0);
+            else if (desde is not null && lado >= 2 && contra == 0) contra = 1;
+            else (desde, lado, contra) = (null, 0, 0);
+        }
+        return desde is { } d && contra == 0 && lado >= 2 && anterior - d >= TimeSpan.FromMinutes(2);
     }
 
     private TimeSpan AbaixoDaMinimaHa(ConfortoConfig cfg)

@@ -75,6 +75,7 @@ public static class ViewStateBuilder
                 fan = FanApi(exp?.Fan),
                 targetC = exp?.TargetC,
                 ambientC = exp?.AmbientC,
+                sensorOffsetC = s.SensorOffsets.GetValueOrDefault(d.Id),
                 eco = exp?.EnergySaving,
                 oscillate = exp?.Oscillate,
                 stopTimeSec = exp?.StopTimeSeconds ?? 0,

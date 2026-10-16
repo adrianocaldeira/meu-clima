@@ -127,9 +127,15 @@ public class ConfortoTests
         for (var m = 40; m <= 50; m += 5) r.Evaluate(Ctx(At(14, m), 30, Snap(ambient: 26)));
         Assert.Equal(ConfortoFase.Manter, r.State.Fase);
 
+        // Dentro entrou na faixa, mas os 30 min de turbo (14:05 a 14:36) valem por 2 h: novo turbo só com
+        // 10 min de saldo, a partir de 16:16.
         r.Evaluate(Ctx(At(15), 30, Snap(ambient: 24)));
-        r.Evaluate(Ctx(At(15, 10), 30, Snap(ambient: 26)));
-        r.Evaluate(Ctx(At(15, 15), 30, Snap(ambient: 26)));
+        for (var m = 10; m <= 55; m += 5) r.Evaluate(Ctx(At(15, m), 30, Snap(ambient: 26)));
+        for (var m = 0; m <= 15; m += 5) r.Evaluate(Ctx(At(16, m), 30, Snap(ambient: 26)));
+        Assert.Equal(ConfortoFase.Manter, r.State.Fase);
+        Assert.Equal(31, r.TurboUsado(At(14, 40)).TotalMinutes, 0);
+
+        r.Evaluate(Ctx(At(16, 20), 30, Snap(ambient: 26)));
         Assert.Equal(ConfortoFase.Turbo, r.State.Fase);
     }
 
@@ -613,7 +619,7 @@ public class AusenteTests
 public class JanelaAbertaTests
 {
     private static FakeHistory Historico(params (int Min, int Amb)[] pontos) =>
-        new([.. pontos.Select(p => new HistorySample(At(14).AddMinutes(p.Min), true, true, AcMode.Cool, p.Amb, 22))]);
+        new([.. pontos.Select(p => new HistorySample(At(14).AddMinutes(p.Min), true, true, AcMode.Cool, p.Amb, 23))]);
 
     private static FakeHistory Subindo() => Historico((0, 23), (5, 23), (10, 23), (15, 23), (20, 24), (22, 25), (23, 25), (24, 25), (25, 25));
 

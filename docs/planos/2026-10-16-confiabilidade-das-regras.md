@@ -74,6 +74,28 @@ Legenda: **[P]** provado por teste ou dado; **[H]** hipótese.
 - **Capabilities com `triggers` e valores `disabled`.** Validar o comando antes de enviar, em vez de descobrir pela recusa.
 - **Temperatura de fora por estação do INMET** (a mais próxima), como alternativa ao Open-Meteo. O "agora" do Open-Meteo vem da previsão horária de um modelo global (grade de 9–25 km) e diverge 1–2 °C do que o celular mostra.
 
+## Situação na v0.3.0
+
+Fases 0 e 1 saíram na v0.2.4. Na v0.3.0:
+
+- **Feitos:** 2.1, 2.2, 2.3, 2.4, 2.7, 2.8, 2.9, 3.1 a 3.6 e as capabilities da Fase 4 (modo e ventilação
+  fora da lista saem do plano; o alvo vai para a faixa). Cada um tem teste e prova de sabotagem.
+- **2.5, em parte.** Feito: aviso só depois do envio aceito; não dispara em pausa manual; não dispara
+  com alvo ≥ dentro ou com alvo mudado na janela. A exigência de 3 leituras foi testada e revertida:
+  sem evidência de falso positivo com 2, e quem lê a cada 5 min esperaria 15 min.
+- **2.6, desmentido.** As leituras de 14/10 mostram o próprio aparelho mudando ventilação e alvo 1 a 3
+  leituras depois da troca de modo (18:16 Auto → 18:18 ventilação Alta → 18:19 alvo 24; de novo às
+  18:42 → 18:44/18:45). Tratar isso como ajuste do usuário pausaria a regra a cada troca de modo.
+  O comportamento atual fica.
+- **Invariantes 5 e 10** viraram checagem do simulador: turbo ≤ 30 min em 2 h e compressor do
+  Conforto sem troca em menos de 5 min (fora de pausa manual, recusa da nuvem e lacuna de leitura).
+- **Adiados:** SSE (exige spike com a API real, e o refresh token rotaciona) e INMET (rotas de
+  observação fora do ar em 10/2026 e exige token).
+- **Revisão da v0.2.4:** regra sem `tipo` no `settings.json` agora abre só leitura, como o JSON não
+  reconhecido. Campo desconhecido continua aceito em silêncio.
+- **Node 20 nas actions:** resolvido (checkout v5, setup-dotnet v5, upload-artifact v6,
+  action-gh-release v3).
+
 ## Achados da revisão da v0.2.4
 
 - Volta da suspensão contava como ajuste manual: corrigido (`MaxObservationGap`).
@@ -104,4 +126,3 @@ Legenda: **[P]** provado por teste ou dado; **[H]** hipótese.
 ## Fora do plano, por enquanto
 
 - Origem do desligamento do ar durante a noite de 15→16/10: sem registro. O log da Fase 0 passa a cobrir isso.
-- Aviso de Node 20 nas actions do workflow.

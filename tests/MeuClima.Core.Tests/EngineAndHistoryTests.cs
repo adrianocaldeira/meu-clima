@@ -11,7 +11,7 @@ public class RuleEngineTests
 {
     private static FakeHistory JanelaAbertaHistorico() =>
         new([.. new[] { (0, 23), (10, 23), (20, 24), (22, 25), (25, 25) }
-            .Select(p => new HistorySample(At(14).AddMinutes(p.Item1), true, true, AcMode.Cool, p.Item2, 22))]);
+            .Select(p => new HistorySample(At(14).AddMinutes(p.Item1), true, true, AcMode.Cool, p.Item2, 23))]);
 
     [Fact]
     public void Prioridade_maior_fica_com_o_aparelho()
@@ -400,5 +400,17 @@ public class OpenMeteoTests
         Assert.Equal(31.5, w.Hourly[0].ApparentC);
         Assert.Null(w.Hourly[1].ApparentC);
         Assert.Equal(new DateTimeOffset(2026, 10, 14, 17, 0, 0, TimeSpan.Zero), w.Hourly[0].Time);
+        Assert.Null(w.DewPointC);
+    }
+
+    [Fact]
+    public void Leitura_atual_traz_o_ponto_de_orvalho()
+    {
+        var json = System.Text.Json.Nodes.JsonNode.Parse("""
+            {"current":{"temperature_2m":21.0,"apparent_temperature":20.5,"relative_humidity_2m":80,"dew_point_2m":17.4},
+             "hourly":{"time":[],"temperature_2m":[],"apparent_temperature":[]}}
+            """)!;
+
+        Assert.Equal(17.4, OpenMeteoClient.Parse(json, At(14)).DewPointC);
     }
 }

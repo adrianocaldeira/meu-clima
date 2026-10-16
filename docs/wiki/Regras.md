@@ -43,6 +43,15 @@ Os valores abaixo são os **padrões**; os ajustáveis aparecem na configuraçã
 - **Sem comando à toa** — comando igual ao estado atual não é enviado, e há no mínimo 20 s entre
   comandos ao mesmo aparelho.
 - **Atraso normal** — o aparelho leva cerca de 30 s para refletir um comando no estado que a API informa.
+- **Aviso só com comando aceito** — avisos como "Conforto ligou o ar" ou "Desliguei o ar" só aparecem
+  depois que a Electrolux aceita o comando. Comando recusado ou sem conexão não gera aviso.
+- **O que o aparelho aceita** — ventilação que o aparelho não declara sai do comando, e um alvo fora
+  da faixa dele vai para o limite. Modo que ele não declara (ex.: Quente num aparelho só de Frio)
+  cancela o comando inteiro, para não ligar o ar no modo errado. O log registra o que ficou de fora.
+- **Correção do sensor** — em **Ajustes** → **Sensor de temperatura**, dá para somar de -3 a +3 °C à
+  leitura de cada aparelho. Regras e painel usam o valor corrigido; o cômodo mostra ao lado a
+  leitura bruta ("sensor 27"). Ao mudar a correção, a Janela aberta ignora as leituras anteriores.
+  Use quando um termômetro na altura da mesa marcar diferente do aparelho.
 
 ---
 
@@ -57,8 +66,9 @@ opcional; sem ela, vale para qualquer dia e hora. "Só com alguém no PC" pode s
 - **Acima da máxima** por 5 min (por 2 min se estiver 2 °C ou mais acima): liga (ou passa) para Frio, ventilação Auto, **modo econômico**,
   alvo 24 °C.
 - **Calor forte** — dentro **≥ 26 °C** por 2 min: Frio com ventilação **Turbo** até voltar a 24 °C,
-  por no máximo **30 min**. Esgotado o tempo, volta ao Frio econômico e só tenta o turbo de novo
-  depois que dentro chegar à máxima, mesmo que você saia e volte ao PC. Se o turbo inteiro passar
+  por no máximo **30 min a cada 2 h**, somando todos os turbos (sair e voltar ao PC não zera a conta).
+  Um turbo novo só começa com pelo menos 10 min de saldo; até lá, Frio econômico. Esgotado o tempo,
+  volta ao Frio econômico e só tenta o turbo de novo depois que dentro chegar à máxima. Se o turbo inteiro passar
   sem a leitura baixar nem 1 °C, o painel avisa que o sensor do aparelho parece travado (ele fica
   no aparelho, perto do teto, e pode marcar mais que a altura da mesa).
 - **Na mínima** por 10 min: **só ventila** (compressor desligado, ventilação baixa). Com "Só ventilar"
@@ -66,12 +76,21 @@ opcional; sem ela, vale para qualquer dia e hora. "Só com alguém no PC" pode s
   desde quando passou e até que horas espera.
 - **Antes do calor:** se a **sensação térmica** prevista para os próximos 30 min passar de **30 °C** e
   dentro já estiver na máxima, liga em Frio econômico. Uma vez por dia.
-- **Lá fora mais fresco:** com o ar esfriando, se a sensação lá fora estiver **3 °C abaixo** de
-  dentro, avisa para abrir a janela e desligar. Entre 7h e 22h, no máximo um aviso a cada 3 h.
-  **Só avisa, não comanda.**
+- **Lá fora mais fresco:** vale entre 7h e 22h, quando a temperatura lá fora está **3 °C abaixo** de
+  dentro e o ar de fora é seco o bastante (ponto de orvalho até 18 °C). A sensação térmica não conta:
+  o vento de fora não entra no cômodo.
+  - **Antes de ligar:** avisa para abrir a janela e espera 20 min. Se dentro continuar acima da
+    máxima, liga.
+  - **Com o ar esfriando:** avisa para abrir a janela e desligar, no máximo um aviso a cada 3 h.
+    **Só avisa, não comanda.**
+- **Compressor:** entre ligar e desligar o compressor (Frio ou Quente de um lado; desligado ou só
+  ventilando do outro), o Conforto espera pelo menos **5 min**. O painel diz até que horas. Seu ajuste
+  não espera.
 - Com o aparelho já ligado (antes de o app abrir, ou por você depois de terminada a pausa de 60 min),
   assume na hora, sem esperar os 5 min.
   Exceção: se você ligou em **Quente** e "Aquecer abaixo da mínima" está desligado, o Conforto não mexe.
+- **Aquecendo:** quando dentro passa da mínima por 5 min, só ventila (ou desliga, com "Só ventilar"
+  desligado). Nunca passa direto do Quente para o Frio.
 - Durante a pausa por ajuste manual, ou com uma regra de prioridade maior no comando, o Conforto não
   avança nem avisa; depois recomeça a contagem do zero.
 - **Depois de 10 min sem leitura** (PC desligado ou suspenso, app fechado), o Conforto recomeça do zero:
@@ -86,8 +105,10 @@ desligado.
 na ausência é a regra "Ausente"); se estava no turbo, só tira a ventilação do Turbo.
 
 **Atenção:** o sensor do aparelho mede graus inteiros e às vezes salta numa leitura só; por isso
-cada mudança de fase espera alguns minutos de confirmação, com pelo menos uma leitura nova do aparelho. A sensação térmica vem do Open-Meteo para
-a sua região, não da sua janela.
+cada mudança de fase espera alguns minutos de confirmação, com pelo menos uma leitura nova do aparelho.
+Depois de duas leituras do mesmo lado, uma leitura isolada do outro lado não zera a contagem; duas
+seguidas zeram. Um salto de 3 °C ou mais de uma leitura para a seguinte espera os 5 min normais, mesmo
+acima de 26 °C. O clima de fora vem do Open-Meteo para a sua região, não da sua janela.
 
 ---
 
@@ -105,7 +126,10 @@ a sua região, não da sua janela.
   aparelho cuida). A opção "Desligar quando o PC desligar ou suspender" vem ligada; desligada, o ar
   fica como está.
 - **Sem uso do PC**, com a tela desbloqueada: com **20 min**, passa para Frio 26 °C (alívio); com
-  **60 min**, desliga. Se estava no Turbo, o alívio também volta a ventilação para Auto. Se o ar estava aquecendo, não alivia: só desliga no tempo.
+  **60 min**, desliga. Se estava no Turbo, o alívio também volta a ventilação para Auto. Se o ar estava
+  aquecendo ou só ventilando, não alivia: só desliga no tempo.
+- **Você mexeu durante a ausência** (religou pelo controle, pelo celular ou pelo painel): o Ausente não
+  desliga de novo até você voltar ao PC, nem no desligamento do PC. Na volta, não restaura nada.
 - **Na volta:** as regras ativas, como o Conforto, decidem se o ar liga de novo. Com "Voltar ao
   ajuste anterior" ligado, restaura o que estava antes (ligado, modo, ventilação e temperatura);
   tenta por até 15 min e, se o aparelho não aceitar nesse prazo, desiste.
@@ -124,7 +148,12 @@ Electrolux. Sem internet nesse instante, o ar fica ligado; o log registra o que 
 
 **O que faz:** se o aparelho está ligado em Frio há **≥ 15 min** e a temperatura do ambiente **sobe
 ≥ 2 °C em 15 min** e **se mantém** assim por 3 min, em pelo menos duas leituras, o app desliga o aparelho e avisa. Nos **60 min**
-seguintes, mantém o aparelho desligado.
+seguintes, mantém o aparelho desligado. O aviso sai só depois que o comando é aceito.
+
+Não dispara quando:
+- o alvo está no nível de dentro ou acima (o alívio do Ausente e o Modo noite sobem o alvo de propósito);
+- o alvo mudou nos últimos 15 min;
+- o aparelho está em pausa por ajuste manual.
 
 No painel, a regra diz o motivo e o prazo, por exemplo: "Dentro subiu de 24 para 26 °C com o ar no
 frio: janela ou porta aberta? Ar desligado até 11:20 ou até você religar."
@@ -156,6 +185,9 @@ cria uma, se não existir).
 - Programa o **timer do próprio aparelho** para desligar em **4 h**. Esse timer **funciona mesmo com
   o PC desligado**.
 - Enquanto o PC estiver ligado, **sobe 1 °C por hora**, a partir do alvo do momento, com teto de 28 °C.
+  Aquecendo, não sobe: mantém o alvo.
+- Se você mudar ou zerar o timer pelo painel do Meu Clima, o Modo noite não programa outro naquela
+  noite. Timer mudado pelo controle ou pelo celular não é detectado.
 - Se o timer não chegar ao aparelho, o próprio app desliga o ar ao fim das 4 h (com o PC ligado).
 - Ao cancelar, o app zera o timer que o Modo noite programou.
 

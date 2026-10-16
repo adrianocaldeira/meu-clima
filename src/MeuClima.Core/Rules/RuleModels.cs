@@ -17,6 +17,17 @@ public interface IHistoryReader
     IReadOnlyList<HistorySample> Samples(string deviceId, DateTimeOffset since);
 }
 
+/// <summary>Esconde a temperatura gravada antes de mudar a correção do sensor: a escala mudou e o degrau pareceria calor.</summary>
+public sealed class HistoricoDesdeCorrecao(IHistoryReader inner, IReadOnlyDictionary<string, DateTimeOffset> mudouEm) : IHistoryReader
+{
+    public IReadOnlyList<HistorySample> Samples(string deviceId, DateTimeOffset since)
+    {
+        var amostras = inner.Samples(deviceId, since);
+        if (!mudouEm.TryGetValue(deviceId, out var em) || amostras.All(s => s.Time >= em)) return amostras;
+        return [.. amostras.Select(s => s.Time < em ? s with { AmbientC = null } : s)];
+    }
+}
+
 public sealed record RuleContext(
     DateTimeOffset Now,
     TimeZoneInfo TimeZone,
@@ -37,7 +48,12 @@ public sealed record RuleContext(
     public bool IsBlocked(string deviceId) => Blocked?.Invoke(deviceId) ?? false;
 }
 
-public sealed record Notification(string Title, string Body);
+/// <summary>Aviso ao usuário. Com <see cref="DeviceId"/>, só sai depois que o comando ao aparelho for aceito.</summary>
+public sealed record Notification(string Title, string Body)
+{
+    public string? DeviceId { get; init; }
+    public string? RuleName { get; init; }
+}
 
 /// <summary>Situação visível de uma regra ativa (aviso na bandeja).</summary>
 public sealed record RuleStatus(string Title, string Detail, double? Progress);
@@ -64,9 +80,9 @@ public sealed class RuleOutput
         return this;
     }
 
-    public RuleOutput Notify(string title, string body)
+    public RuleOutput Notify(string title, string body, string? deviceId = null)
     {
-        Notifications.Add(new Notification(title, body));
+        Notifications.Add(new Notification(title, body) { DeviceId = deviceId });
         return this;
     }
 

@@ -10,7 +10,8 @@ public sealed record WeatherSnapshot(
     double ApparentC,
     int HumidityPct,
     IReadOnlyList<HourlyPoint> Hourly,
-    DateTimeOffset ReadAt)
+    DateTimeOffset ReadAt,
+    double? DewPointC = null)
 {
     /// <summary>Maior temperatura prevista no dia local de <paramref name="day"/>.</summary>
     public HourlyPoint? PeakOn(DateOnly day, TimeZoneInfo tz) =>
@@ -31,7 +32,7 @@ public sealed class OpenMeteoClient(HttpClient http, TimeProvider clock)
     public async Task<WeatherSnapshot> GetAsync(double lat, double lon, CancellationToken ct = default)
     {
         var url = string.Create(CultureInfo.InvariantCulture,
-            $"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature&hourly=temperature_2m,apparent_temperature&forecast_days=2&timezone=UTC");
+            $"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,dew_point_2m&hourly=temperature_2m,apparent_temperature&forecast_days=2&timezone=UTC");
         var json = JsonNode.Parse(await http.GetStringAsync(url, ct))!;
         return Parse(json, clock.GetUtcNow());
     }
@@ -72,6 +73,7 @@ public sealed class OpenMeteoClient(HttpClient http, TimeProvider clock)
             cur["apparent_temperature"]!.GetValue<double>(),
             (int)Math.Round(cur["relative_humidity_2m"]!.GetValue<double>()),
             hourly,
-            readAt);
+            readAt,
+            cur["dew_point_2m"]?.GetValue<double>());
     }
 }

@@ -45,6 +45,11 @@ public sealed record AppSettings
     /// <summary><c>system</c> (segue o Windows), <c>light</c> ou <c>dark</c>.</summary>
     public string Theme { get; init; } = "system";
     public bool DefaultRulesCreated { get; init; }
+    /// <summary>Correção da leitura de dentro por aparelho, em °C inteiros (de -3 a +3).</summary>
+    public Dictionary<string, int> SensorOffsets { get; init; } = [];
+
+    /// <summary>Quando cada correção mudou: o histórico anterior está em outra escala, inclusive depois de reiniciar.</summary>
+    public Dictionary<string, DateTimeOffset> SensorOffsetsDesde { get; init; } = [];
     public List<RuleConfig> Rules { get; init; } = [];
 }
 
@@ -93,7 +98,8 @@ public sealed class SettingsStore
         {
             return (JsonSerializer.Deserialize<AppSettings>(texto, Json.Options) ?? new(), false);
         }
-        catch (JsonException ex) when (JsonValido(texto))
+        // NotSupportedException: regra sem "tipo" (o System.Text.Json não cria a classe abstrata).
+        catch (Exception ex) when (ex is JsonException or NotSupportedException && JsonValido(texto))
         {
             // JSON íntegro que esta versão não entende (ex.: regra criada por versão mais nova): recriar as regras
             // padrão e gravar por cima apagaria a configuração do usuário.

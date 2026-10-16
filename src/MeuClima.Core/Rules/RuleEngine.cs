@@ -2,7 +2,11 @@ using MeuClima.Core.Devices;
 
 namespace MeuClima.Core.Rules;
 
-public sealed record PlannedCommands(string DeviceId, string RuleName, IReadOnlyList<DeviceCommand> Commands);
+public sealed record PlannedCommands(string DeviceId, string RuleName, IReadOnlyList<DeviceCommand> Commands)
+{
+    /// <summary>Avisos da regra sobre este aparelho: saem só quando o envio for aceito.</summary>
+    public IReadOnlyList<Notification> Notifications { get; init; } = [];
+}
 
 public enum ActiveKind { Acting, Watching, Waiting }
 
@@ -34,6 +38,10 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
     /// <summary>Entre leituras mais distantes que isto (suspensão, rede fora), não dá para saber quem mudou o aparelho.</summary>
     public TimeSpan MaxObservationGap { get; set; } = RuleContext.DefaultMaxReadingAge;
 
+    /// <summary>O que cada aparelho declara aceitar; o plano é ajustado antes de comparar com o estado esperado.</summary>
+    public Func<string, DeviceCapabilities?> Capabilities { get; set; } = _ => null;
+
+    private readonly Dictionary<(string, string), string> _foraRegistrado = [];
     private readonly List<IRule> _rules = [.. rules.OrderByDescending(r => r.Priority)];
     private readonly Dictionary<string, DateTimeOffset> _pausedUntil = [];
     private readonly Dictionary<string, DateTimeOffset> _lastSent = [];
@@ -119,7 +127,8 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
     /// <summary>Mudança que diverge do que foi pedido (ex.: pedi 22 °C, apareceu 26 °C) é do usuário.</summary>
     /// <remarks>
     /// Campo sem comando pendente só pode mudar sozinho depois de ligar ou trocar o modo (o aparelho reajusta
-    /// ventilação e alvo); fora disso, mudança sem pedido é do usuário. A energia nunca muda sozinha.
+    /// ventilação e alvo até três leituras depois, medido em 14/10); fora disso, mudança sem pedido é do usuário.
+    /// A energia nunca muda sozinha.
     /// </remarks>
     private static bool Contradicts(DeviceSnapshot prev, DeviceSnapshot cur, List<DeviceCommand> cmds)
     {
@@ -172,7 +181,7 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
                 continue;
             }
             _failingRules.Remove(rule.Config.Id);
-            notes.AddRange(output.Notifications);
+            notes.AddRange(output.Notifications.Where(n => n.DeviceId is null).Select(n => n with { RuleName = rule.Name }));
             traces.AddRange(output.Traces.Select(t => new RuleTrace(rule.Name, t.DeviceId, t.Text)));
 
             foreach (var (deviceId, desired) in output.Claims)
@@ -187,8 +196,21 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
                 if (bloqueio is not null) continue;
 
                 owner[deviceId] = rule;
-                var plan = CommandPlanner.Plan(expected[deviceId], desired);
-                if (plan.Count > 0) commands.Add(new PlannedCommands(deviceId, rule.Name, plan));
+                // Ajustar antes do Plan: alvo limitado à faixa vira o esperado e não reenvia a cada ciclo.
+                var cabe = CommandPlanner.Fit([.. desired], Capabilities(deviceId), out var fora);
+                var foraTexto = string.Join(", ", fora);
+                if (_foraRegistrado.GetValueOrDefault((deviceId, rule.Name), "") != foraTexto)
+                {
+                    _foraRegistrado[(deviceId, rule.Name)] = foraTexto;
+                    if (fora.Count > 0)
+                        traces.Add(new RuleTrace(rule.Name, deviceId, $"fora do que o aparelho aceita: {foraTexto}{(cabe.Count == 0 ? "; nada enviado" : "")}"));
+                }
+                var plan = CommandPlanner.Plan(expected[deviceId], cabe);
+                if (plan.Count > 0)
+                    commands.Add(new PlannedCommands(deviceId, rule.Name, plan)
+                    {
+                        Notifications = [.. output.Notifications.Where(n => n.DeviceId == deviceId).Select(n => n with { RuleName = rule.Name })],
+                    });
             }
             foreach (var (deviceId, (st, waiting)) in output.Observed)
                 if (!output.Claims.ContainsKey(deviceId))

@@ -6,6 +6,36 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+### Adicionado
+- Correção do sensor por aparelho, de -3 a +3 °C, em **Ajustes** → **Sensor de temperatura**. As
+  regras e o painel usam o valor corrigido.
+- O "Conforto" espera 5 min entre ligar e desligar o compressor, para poupar o aparelho. O painel
+  diz até que horas.
+- Com lá fora mais fresco e seco (temperatura 3 °C abaixo e ponto de orvalho até 18 °C), o "Conforto"
+  sugere abrir a janela e espera 20 min antes de ligar o ar.
+- Ventilação que o aparelho não aceita sai do comando; alvo fora da faixa vai para o limite; modo que
+  ele não aceita cancela o comando inteiro (em vez de ligar no último modo) e fica registrado no log.
+
+### Corrigido
+- O "Conforto" ligava o ar e no mesmo instante avisava para abrir a janela e desligar.
+- O teto de 30 min do turbo era burlado saindo e voltando ao PC; agora vale para cada 2 h.
+- Uma leitura isolada de 1 °C a menos no meio de uma hora quente prendia o "Conforto" sem esfriar.
+- Um salto de 3 °C numa leitura só disparava o turbo em 2 min.
+- Aquecendo, o "Conforto" podia passar direto do Quente para o Frio.
+- Depois de você religar o ar durante a ausência, o "Ausente" desligava de novo a cada hora e no
+  desligamento do PC.
+- O alívio do "Ausente" trocava "só ventilar" por Frio, ligando o compressor.
+- A "Janela aberta" disparava com o alvo subido pelo alívio do "Ausente" ou pelo "Modo noite", com o
+  alvo recém-mudado e durante a pausa manual (desligava o ar só no fim da pausa).
+- O "Modo noite" reprogramava o timer que você tinha acabado de zerar e subia o alvo aquecendo.
+- Avisos como "Conforto ligou o ar" saíam mesmo com o comando recusado ou sem conexão.
+- Um comando que demorava a responder virava "ajuste manual" e pausava as regras por 1 h.
+- Regra sem tipo no `settings.json` fazia o app recriar as regras padrão; agora abre só para leitura.
+
+### Mudado
+- O "lá fora mais fresco" usa a temperatura e o ponto de orvalho, não a sensação térmica.
+- As actions do GitHub passaram para o Node 24.
+
 ## [0.2.4] — 2026
 
 ### Corrigido

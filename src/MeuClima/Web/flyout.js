@@ -98,7 +98,8 @@
     if (pc) {
       const v = devView(pc);
       const s = !pc.connected ? 'sem conexão' : v.on ? `alvo ${v.targetC} · ${(MODE[v.mode] || v.mode).toLowerCase()}` : 'desligado';
-      room = cell(pc.name, `${nf(pc.ambientC, 0)} °C`, s);
+      const off = pc.sensorOffsetC || 0;
+      room = cell(pc.name, `${nf(pc.ambientC, 0)} °C`, off && pc.ambientC != null ? `${s} · sensor ${nf(pc.ambientC - off, 0)}` : s);
     } else room = cell('Cômodo do PC', '—', 'a definir');
     let peak;
     if (w && w.peakToday) peak = cell('Pico hoje', `${nf(w.peakToday.tempC, 0)} °C`, `às ${hourText(w.peakToday.time)}`);

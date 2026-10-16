@@ -281,6 +281,7 @@
           if (p.settings && 'pcDeviceId' in p.settings) { S.devices.forEach(d => { d.isPcRoom = d.id === p.settings.pcDeviceId; }); S.setup.pcDevice = !!p.settings.pcDeviceId; }
           later(pushState);
           break;
+        case 'setSensorOffset': { const d = S.devices.find(x => x.id === p.deviceId); if (d) d.sensorOffsetC = p.offset; later(pushState); break; }
         case 'searchCity': {
           const q = String(p.query || '').trim().toLowerCase();
           later(() => emitFn('cities', CITIES.filter(c => c.name.toLowerCase().includes(q))), 500);

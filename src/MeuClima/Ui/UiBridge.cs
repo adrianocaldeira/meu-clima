@@ -91,6 +91,11 @@ public sealed class UiBridge(ClimateService climate, Action<string?> openCentral
                     Theme = p.TryGetProperty("theme", out var th) && th.GetString() is "system" or "light" or "dark" ? th.GetString()! : s.Theme,
                 });
                 break;
+            case "setSensorOffset":
+                var aparelho = S("deviceId");
+                var offset = Math.Clamp(m.GetProperty("offset").GetInt32(), -ClimateService.MaxSensorOffsetC, ClimateService.MaxSensorOffsetC);
+                await climate.UpdateSettingsAsync(s => s with { SensorOffsets = new(s.SensorOffsets) { [aparelho] = offset } });
+                break;
             case "searchCity":
                 var cities = await climate.SearchCityAsync(S("query"));
                 source.Post("cities", JsonSerializer.Serialize(cities, Json.Options));

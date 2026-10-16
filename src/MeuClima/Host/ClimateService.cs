@@ -15,6 +15,9 @@ public sealed class ClimateService : IDisposable
     public static readonly TimeSpan RuleCommandGap = TimeSpan.FromSeconds(20);
     public static readonly TimeSpan RuleRetryAfterFailure = TimeSpan.FromMinutes(1);
     public static readonly TimeSpan RuleRetryAfterReject = TimeSpan.FromMinutes(10);
+    /// <summary>Aviso de ação que não chegou ao aparelho até aqui é descartado.</summary>
+    public static readonly TimeSpan PendingNoticeTtl = TimeSpan.FromMinutes(15);
+    public const int MaxSensorOffsetC = 3;
 
     private static TimeSpan ConfirmationFor(AppSettings s) =>
         TimeSpan.FromMinutes(Math.Max(RuleEngine.DefaultConfirmationWindow.TotalMinutes, Math.Max(1, s.DeviceIntervalMin) + 1));
@@ -41,7 +44,7 @@ public sealed class ClimateService : IDisposable
     private readonly Dictionary<string, DateTimeOffset> _lastRuleSend = [];
     private readonly Dictionary<(string Device, string Rule), DateTimeOffset> _ruleRetryAt = [];
     private readonly HashSet<(string Device, string Origem)> _rejectNotified = [];
-    private readonly Dictionary<string, SaidaEstagio> _saidaEstagio = [];
+    private readonly Dictionary<(string Device, string Rule), List<(Notification Aviso, DateTimeOffset Em, IReadOnlyList<DeviceCommand> Cmds)>> _avisosPendentes = [];    private readonly Dictionary<string, SaidaEstagio> _saidaEstagio = [];
     private readonly Dictionary<(string Rule, string Device), string> _logAtivas = [];
     private readonly Dictionary<string, string> _temperaturasLidas = [];
     private volatile IReadOnlyList<ShutdownDecision> _planoDesligamento = [];
@@ -175,8 +178,11 @@ public sealed class ClimateService : IDisposable
                     catch (HttpRequestException ex) { Log.Write($"Capabilities de {d.Name} falhou: {ex.Message}"); }
                 }
                 var snap = (await _electrolux.GetStateAsync(d.Id, ct)) with { Name = d.Name };
+                var offset = SensorOffset(d.Id);
+                if (offset != 0 && snap.AmbientC is { } bruto) snap = snap with { AmbientC = bruto + offset };
                 _readings.TryGetValue(d.Id, out var anterior);
-                if (anterior is null || Descrever(anterior) != Descrever(snap)) Log.Write($"Leitura {d.Name}: {Descrever(snap)}");
+                if (anterior is null || Descrever(anterior) != Descrever(snap))
+                    Log.Write($"Leitura {d.Name}: {Descrever(snap)}{(offset != 0 ? $" (sensor {offset:+0;-0} °C)" : "")}");
                 if (anterior is { } prev && _engine.ObserveReading(prev, snap, now))
                 {
                     _history.RecordEvent(now, d.Id, "manual", "mudança feita fora do Meu Clima");
@@ -216,7 +222,9 @@ public sealed class ClimateService : IDisposable
     {
         _engine.ConfirmationWindow = ConfirmationFor(_settings.Current);
         _engine.MaxObservationGap = MaxReadingAgeFor(_settings.Current);
-        var ctx = new RuleContext(now, TimeZoneInfo.Local, _weatherNow, _readings, _presence.Current(now), _history)
+        _engine.Capabilities = id => _caps.GetValueOrDefault(id);
+        var ctx = new RuleContext(now, TimeZoneInfo.Local, _weatherNow, _readings, _presence.Current(now),
+            new HistoricoDesdeCorrecao(_history, _settings.Current.SensorOffsetsDesde))
         {
             MaxReadingAge = MaxReadingAgeFor(_settings.Current),
         };
@@ -229,19 +237,44 @@ public sealed class ClimateService : IDisposable
 
         foreach (var n in result.Notifications) Raise(n.Title, n.Body);
         _rejectNotified.RemoveWhere(k => !result.Commands.Any(p => p.DeviceId == k.Device && p.RuleName == k.Origem));
+        foreach (var lista in _avisosPendentes.Values) lista.RemoveAll(a => now - a.Em > PendingNoticeTtl);
         foreach (var plan in result.Commands)
         {
-            if (_lastRuleSend.TryGetValue(plan.DeviceId, out var last) && now - last < RuleCommandGap) continue;
             var chave = (plan.DeviceId, plan.RuleName);
+            GuardarAvisos(chave, plan.Notifications, plan.Commands, now);
+            if (_lastRuleSend.TryGetValue(plan.DeviceId, out var last) && now - last < RuleCommandGap) continue;
             if (_ruleRetryAt.TryGetValue(chave, out var retry) && now < retry) continue;
             _lastRuleSend[plan.DeviceId] = now;
             // A regra planejaria o mesmo comando a cada ciclo: recusa espera mais que falha de rede.
             var resultado = await SendAsync(plan.DeviceId, plan.Commands, plan.RuleName, now, ct);
+            if (resultado is SendResult.Ok or SendResult.Deferred) LiberarAvisos(chave, plan.Commands);
+            // Falha de rede ou timeout podem ter aplicado o comando: o aviso espera o reenvio (ou o prazo).
+            else if (resultado == SendResult.Rejected) _avisosPendentes.Remove(chave);
             if (resultado == SendResult.Ok) _ruleRetryAt.Remove(chave);
             else _ruleRetryAt[chave] = now + (resultado == SendResult.Rejected ? RuleRetryAfterReject : RuleRetryAfterFailure);
         }
         AtualizarPlanoDesligamento(now);
     }
+
+    /// <summary>Aviso de ação ("Conforto ligou o ar") espera o aparelho aceitar o comando.</summary>
+    private void GuardarAvisos((string, string) chave, IReadOnlyList<Notification> avisos, IReadOnlyList<DeviceCommand> cmds, DateTimeOffset now)
+    {
+        if (avisos.Count == 0) return;
+        if (!_avisosPendentes.TryGetValue(chave, out var lista)) _avisosPendentes[chave] = lista = [];
+        foreach (var a in avisos)
+            if (!lista.Any(x => x.Aviso.Title == a.Title && x.Aviso.Body == a.Body)) lista.Add((a, now, cmds));
+    }
+
+    /// <remarks>Só o aviso cujo plano tem algum comando aceito: o envio de outra fase não confirma o turbo recusado.</remarks>
+    private void LiberarAvisos((string, string) chave, IReadOnlyList<DeviceCommand> enviados)
+    {
+        if (!_avisosPendentes.TryGetValue(chave, out var lista)) return;
+        foreach (var (a, _, _) in lista.Where(x => x.Cmds.Intersect(enviados).Any())) Raise(a.Title, a.Body);
+        lista.RemoveAll(x => x.Cmds.Intersect(enviados).Any());
+    }
+
+    private int SensorOffset(string deviceId) =>
+        Math.Clamp(_settings.Current.SensorOffsets.GetValueOrDefault(deviceId), -MaxSensorOffsetC, MaxSensorOffsetC);
 
     /// <summary>Chamar só com a trava: pausa, Modo noite e regras mudam o que fazer se o PC desligar agora.</summary>
     private void AtualizarPlanoDesligamento(DateTimeOffset now) =>
@@ -298,11 +331,14 @@ public sealed class ClimateService : IDisposable
     {
         var enviados = new List<DeviceCommand>();
         var resultado = SendResult.Ok;
+        DeviceCommand? incerto = null;
         try
         {
             foreach (var c in cmds)
             {
+                incerto = c;
                 var r = await _electrolux.SendAsync(deviceId, c, ct);
+                incerto = null;
                 // Logo após um ajuste aceito no mesmo lote, a nuvem ainda vê o estado antigo e recusa o que depende
                 // dele (alvo em Ventilar, econômico em Turbo, Turbo com econômico).
                 if (!r.Ok && r.Outcome == CommandOutcome.Rejected && origem != UserOrigin && enviados.Count > 0)
@@ -328,19 +364,22 @@ public sealed class ClimateService : IDisposable
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or ElectroluxAuthException)
         {
-            Log.Write($"{origem}: envio para {deviceId} falhou: {ex.Message}");
+            // Sem resposta (timeout), a nuvem pode aplicar depois: vira pendente para não contar como ajuste manual.
+            if (ex is not TaskCanceledException || ct.IsCancellationRequested) incerto = null;
+            Log.Write($"{origem}: envio para {deviceId} falhou: {ex.Message}{(incerto is null ? "" : $"; {incerto} fica como pendente")}");
             if (origem == UserOrigin) Raise("Comando não aplicado", $"Não deu para falar com a Electrolux agora. Tente de novo.");
             resultado = SendResult.Failed;
         }
         if (resultado == SendResult.Ok) _rejectNotified.Remove((deviceId, origem));
         // O comando do usuário entra no estado otimista antes do envio; o que não foi aplicado sai dele.
-        else _engine.DiscardPending(deviceId, cmds.Skip(enviados.Count));
+        else _engine.DiscardPending(deviceId, cmds.Skip(enviados.Count + (incerto is null ? 0 : 1)));
         if (enviados.Count > 0)
         {
             _engine.RecordSent(deviceId, enviados, now);
             _history.RecordEvent(now, deviceId, "comando", $"{origem}: {string.Join(", ", enviados)}");
             Log.Write($"{origem} → {NameOf(deviceId)}: {string.Join(", ", enviados)}");
         }
+        if (incerto is not null) _engine.RecordSent(deviceId, [incerto], now);
         return resultado;
     }
 
@@ -357,6 +396,8 @@ public sealed class ClimateService : IDisposable
             if (plan.Count == 0) return;
             _engine.RecordSent(deviceId, plan, now);
             _engine.ManualChange(deviceId, now);
+            if (command is DeviceCommand.SetStopTimer)
+                foreach (var noite in _engine.Rules.OfType<ModoNoiteRule>().Where(r => r.Cfg.DeviceId == deviceId)) noite.TimerDoUsuario();
             Publish();
             await SendAsync(deviceId, plan, UserOrigin, now, CancellationToken.None);
             AtualizarPlanoDesligamento(_clock.GetUtcNow());
@@ -454,7 +495,19 @@ public sealed class ClimateService : IDisposable
         var after = _settings.Update(change);
         if (after.StartWithWindows != before.StartWithWindows) Autostart.Set(after.StartWithWindows);
         if (after.City != before.City || after.WeatherIntervalMin != before.WeatherIntervalMin) _nextWeatherPoll = DateTimeOffset.MinValue;
-        if (after.DeviceIntervalMin != before.DeviceIntervalMin) _nextDevicePoll = DateTimeOffset.MinValue;
+        if (after.DeviceIntervalMin != before.DeviceIntervalMin || !after.SensorOffsets.SequenceEqual(before.SensorOffsets))
+            _nextDevicePoll = DateTimeOffset.MinValue;
+        var mudaram = after.SensorOffsets.Keys.Union(before.SensorOffsets.Keys)
+            .Where(id => after.SensorOffsets.GetValueOrDefault(id) != before.SensorOffsets.GetValueOrDefault(id)).ToList();
+        if (mudaram.Count > 0)
+        {
+            var agora = _clock.GetUtcNow();
+            _settings.Update(s => s with
+            {
+                SensorOffsetsDesde = new(s.SensorOffsetsDesde.Concat(mudaram.Select(id => KeyValuePair.Create(id, agora)))
+                    .GroupBy(kv => kv.Key).Select(g => g.Last())),
+            });
+        }
         if (after.PcDeviceId != before.PcDeviceId) EnsureDefaultRules();
         if (after.Theme != before.Theme) ThemeChanged?.Invoke(after.Theme);
     });

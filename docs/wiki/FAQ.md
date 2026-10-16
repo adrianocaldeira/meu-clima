@@ -98,6 +98,20 @@ costuma refletir o comando em cerca de 30 s — isso é normal. Se demora minuto
 O Open-Meteo dá a temperatura da região (modelo meteorológico), não a do seu prédio. Diferenças de
 alguns graus são esperadas.
 
+### A temperatura de dentro não bate com a do meu termômetro
+
+O sensor fica no próprio aparelho, perto do teto, e costuma marcar mais que a altura da mesa. Em
+**Ajustes** → **Sensor de temperatura**, some de -3 a +3 °C à leitura daquele aparelho. As regras e o
+painel passam a usar o valor corrigido, e o cômodo mostra ao lado a leitura bruta ("sensor 27").
+Para calibrar, deixe um
+termômetro na mesa por alguns minutos com o ar desligado e compare.
+
+### O Conforto avisou que lá fora está mais fresco e não ligou o ar
+
+É de propósito. Com a temperatura de fora 3 °C abaixo da de dentro e o ar de fora seco (entre 7h e
+22h), abrir a janela resolve sem gastar energia. O Conforto espera 20 min; se dentro continuar acima
+da máxima, liga.
+
 ---
 
 ## Dados e privacidade

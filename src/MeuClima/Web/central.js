@@ -446,6 +446,10 @@
         <div class="set"><div><b>Atualizar o clima de fora</b><span>No Brasil a fonte muda de hora em hora.</span></div>${segSet('weatherIntervalMin', [15, 30, 60], s.weatherIntervalMin, 'Intervalo do clima')}</div>
         <div class="set"><div><b>Atualizar os aparelhos</b><span>Lê o estado na nuvem da Electrolux.</span></div>${segSet('deviceIntervalMin', [1, 2, 5], s.deviceIntervalMin, 'Intervalo dos aparelhos')}</div>
       </div>
+      ${state.devices.length ? `<div class="card stack" style="gap:0"><h3>Sensor de temperatura</h3>
+        <p class="small muted" style="margin:0 0 4px">O sensor fica dentro do aparelho, perto do teto, e pode marcar diferente do cômodo. Compare com um termômetro na altura da mesa e corrija aqui. As regras usam o valor corrigido.</p>
+        ${state.devices.map(d => `<div class="set"><div><b>${esc(d.name)}</b><span>${d.ambientC == null ? 'Sem leitura agora.' : `Sensor ${nf(d.ambientC - (d.sensorOffsetC || 0), 0)} °C, corrigido ${nf(d.ambientC, 0)} °C.`}</span></div><span class="unit"><input class="inp num" type="number" inputmode="numeric" aria-label="Correção do sensor de ${esc(d.name)}" data-offset="${esc(d.id)}" data-k="off:${esc(d.id)}" min="-3" max="3" step="1" value="${d.sensorOffsetC || 0}"><em>°C</em></span></div>`).join('')}
+      </div>` : ''}
       <div class="card stack" style="gap:0"><h3>Estimativa de energia</h3>
         <p class="small muted" style="margin:0 0 4px">A Electrolux não informa o consumo. O Meu Clima estima: horas com o compressor ligado × potência média, mais as horas só ventilando a ~40 W, × tarifa. A projeção do mês usa a média dos últimos 7 dias.</p>
         <div class="set"><div><b>Potência média do aparelho</b><span>Veja na etiqueta ou no manual; 9.000 BTU fica perto de 800 W.</span></div>${numIn('averageWatts', 'Potência média em watts', 'W', 100, 5000, 50)}</div>
@@ -609,6 +613,18 @@
 
   main.addEventListener('change', e => {
     const t = e.target;
+    if (t.dataset.offset) {
+      const v = parseInt(t.value, 10);
+      if (!Number.isInteger(v) || v < -3 || v > 3) {
+        t.classList.add('invalid'); t.setAttribute('aria-invalid', 'true');
+        MC.toast({ kind: 'error', text: 'Use um valor inteiro entre -3 e 3.' });
+        return;
+      }
+      t.classList.remove('invalid'); t.removeAttribute('aria-invalid');
+      const dev = state.devices.find(d => d.id === t.dataset.offset);
+      if (dev) dev.sensorOffsetC = v;
+      return send('setSensorOffset', { deviceId: t.dataset.offset, offset: v });
+    }
     if (!t.dataset.setnum) return;
     const k = t.dataset.setnum, v = parseFloat(t.value);
     const min = parseFloat(t.min), max = parseFloat(t.max);
