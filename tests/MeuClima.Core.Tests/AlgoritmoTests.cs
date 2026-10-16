@@ -201,6 +201,119 @@ public class AlgoritmoTests
         Assert.DoesNotContain("Desliga em", o.Status.Detail);
     }
 
+    /// <summary>Modo noite ativo às 22:00 com o próprio timer de 4 h confirmado na leitura das 22:01.</summary>
+    private static ModoNoiteRule NoiteComTimer()
+    {
+        var r = new ModoNoiteRule(new ModoNoiteConfig(Dev));
+        r.Activate(At(22), 24);
+        r.Evaluate(Ctx(At(22, 1), 20, Snap(target: 24) with { ReadAt = At(22, 1), StopTimeSeconds = 4 * 3600 }));
+        return r;
+    }
+
+    private static RuleOutput LerTimer(ModoNoiteRule r, DateTimeOffset t, int? segundos) =>
+        r.Evaluate(Ctx(t, 20, Snap(target: 24) with { ReadAt = t, StopTimeSeconds = segundos }));
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Timer_do_modo_noite_contando_ou_fixo_continua_dele(bool contaParaBaixo)
+    {
+        var r = NoiteComTimer();
+        for (var m = 2; m <= 30; m++)
+            LerTimer(r, At(22, m), contaParaBaixo ? 4 * 3600 - (m - 1) * 60 : 4 * 3600);
+
+        Assert.True(r.State.TimerDoModoNoite);
+    }
+
+    [Fact]
+    public void Timer_programado_pelo_proprio_modo_noite_nao_parece_mudanca_de_fora()
+    {
+        var r = new ModoNoiteRule(new ModoNoiteConfig(Dev));
+        r.Activate(At(22), 24);
+        Assert.Contains(new SetStopTimer(4 * 3600), LerTimer(r, At(22), 0).Claims[Dev]);
+        // Mesma leitura, já com o comando enviado no estado otimista do motor.
+        r.Evaluate(Ctx(At(22).AddSeconds(10), 20,Snap(target: 24) with { ReadAt = At(22), StopTimeSeconds = 4 * 3600 }));
+
+        var o = LerTimer(r, At(22, 1), 4 * 3600 - 50);
+
+        Assert.True(r.State.TimerDoModoNoite);
+        Assert.Empty(o.Traces);
+    }
+
+    [Fact]
+    public void Timer_zerado_pelo_controle_passa_a_ser_seu()
+    {
+        var r = NoiteComTimer();
+        LerTimer(r, At(22, 2), 4 * 3600 - 60);
+
+        var o = LerTimer(r, At(22, 3), 0);
+
+        Assert.False(r.State.TimerDoModoNoite);
+        Assert.Contains("timer mudado fora do app", Assert.Single(o.Traces).Text);
+        Assert.DoesNotContain(LerTimer(r, At(23, 30), 0).Claims[Dev], c => c is SetStopTimer);
+    }
+
+    [Fact]
+    public void Timer_trocado_pelo_celular_passa_a_ser_seu()
+    {
+        var r = NoiteComTimer();
+        LerTimer(r, At(22, 2), 4 * 3600 - 60);
+
+        LerTimer(r, At(22, 3), 3600);
+
+        Assert.False(r.State.TimerDoModoNoite);
+    }
+
+    [Fact]
+    public void Timer_contando_com_leituras_espacadas_continua_do_modo_noite()
+    {
+        var r = NoiteComTimer();
+
+        var o = LerTimer(r, At(22, 31), 4 * 3600 - 30 * 60);
+
+        Assert.True(r.State.TimerDoModoNoite);
+        Assert.Empty(o.Traces);
+    }
+
+    [Fact]
+    public void Timer_otimista_por_varias_leituras_e_depois_contando_continua_do_modo_noite()
+    {
+        var r = new ModoNoiteRule(new ModoNoiteConfig(Dev));
+        r.Activate(At(22), 24);
+        LerTimer(r, At(22), 0);
+        foreach (var s in new[] { 30, 90, 150 })
+            LerTimer(r, At(22).AddSeconds(s), 4 * 3600);
+
+        var o = LerTimer(r, At(22).AddSeconds(210), 4 * 3600 - 210);
+
+        Assert.True(r.State.TimerDoModoNoite);
+        Assert.Empty(o.Traces);
+    }
+
+    [Fact]
+    public void Leitura_desconectada_sem_timer_nao_parece_timer_zerado()
+    {
+        var r = NoiteComTimer();
+        LerTimer(r, At(22, 2), 4 * 3600 - 60);
+
+        r.Evaluate(Ctx(At(22, 3), 20, Snap(target: 24) with { ReadAt = At(22, 3), Connected = false, StopTimeSeconds = null }));
+        LerTimer(r, At(22, 4), 4 * 3600 - 180);
+
+        Assert.True(r.State.TimerDoModoNoite);
+    }
+
+    [Fact]
+    public void Timer_que_zera_no_fim_nao_parece_mudanca_de_fora()
+    {
+        var r = NoiteComTimer();
+        LerTimer(r, At(1, 50, 15), 10 * 60);
+
+        var o = LerTimer(r, At(1, 57, 15), 0);
+
+        Assert.True(r.State.TimerDoModoNoite);
+        Assert.DoesNotContain(o.Traces, t => t.Text.Contains("timer mudado"));
+    }
+
     [Fact]
     public void Modo_noite_so_ventilando_nao_promete_subir_o_alvo()
     {
@@ -335,7 +448,13 @@ public class CapacidadesTests
         public RuleConfig Config { get; } = new ConfortoConfig(Dev);
         public string Name => "Teste";
         public int Priority => RulePriority.Conforto;
-        public RuleOutput Evaluate(RuleContext ctx) => new RuleOutput().Claim(Dev, cmds);
+        public RuleOutput Evaluate(RuleContext ctx)
+        {
+            var o = new RuleOutput().Claim(Dev, cmds);
+            o.Status = new RuleStatus(Name, "agindo", null);
+            return o;
+        }
+
         public string SaveState() => "{}";
         public void LoadState(string json) { }
         public void OnManualChange(string deviceId) { }
@@ -357,6 +476,7 @@ public class CapacidadesTests
         var r = engine.Evaluate(Ctx(At(14), 30, Snap(on: false)));
         Assert.Empty(r.Commands);
         Assert.Contains("nada enviado", Assert.Single(r.Traces).Text);
+        Assert.Equal("o aparelho não aceita o modo Quente", Assert.Single(r.Active).BlockedBy);
         Assert.Empty(engine.Evaluate(Ctx(At(14, 1), 30, Snap(on: false))).Traces);
     }
 
@@ -380,5 +500,65 @@ public class CapacidadesTests
 
         Assert.Same(plano, CommandPlanner.Fit(plano, null, out var fora));
         Assert.Empty(fora);
+    }
+}
+
+public class AvisosPendentesTests
+{
+    private static readonly PlannedCommands Turbo = new(Dev, "Conforto", [new SetEnergySaving(false), new SetFan(FanSpeed.Turbo), new SetTarget(23)])
+    {
+        Notifications = [new Notification("Conforto: turbo", "Turbo até 24 °C.")],
+    };
+
+    private static readonly IReadOnlyList<DeviceCommand> Manter = [new SetFan(FanSpeed.Auto), new SetEnergySaving(true), new SetTarget(24)];
+
+    [Fact]
+    public void Aviso_sai_quando_o_comando_do_plano_e_aceito()
+    {
+        var p = new AvisosPendentes();
+        p.Guardar(Turbo, At(14));
+
+        Assert.Equal("Conforto: turbo", Assert.Single(p.Concluir(Dev, "Conforto", Turbo.Commands, ResultadoEnvio.Ok)).Title);
+        Assert.Empty(p.Concluir(Dev, "Conforto", Turbo.Commands, ResultadoEnvio.Ok));
+    }
+
+    [Fact]
+    public void Aviso_recusado_nao_sai_com_o_envio_de_outra_fase()
+    {
+        var p = new AvisosPendentes();
+        p.Guardar(Turbo, At(14));
+        Assert.Empty(p.Concluir(Dev, "Conforto", Turbo.Commands, ResultadoEnvio.Rejected));
+
+        Assert.Empty(p.Concluir(Dev, "Conforto", Manter, ResultadoEnvio.Ok));
+        Assert.Empty(p.Concluir(Dev, "Conforto", Turbo.Commands, ResultadoEnvio.Ok));
+    }
+
+    [Fact]
+    public void Aviso_de_outra_fase_nao_e_confirmado_pelo_envio_atual()
+    {
+        var p = new AvisosPendentes();
+        p.Guardar(Turbo, At(14));
+
+        Assert.Empty(p.Concluir(Dev, "Conforto", Manter, ResultadoEnvio.Ok));
+    }
+
+    [Fact]
+    public void Falha_de_rede_guarda_o_aviso_para_o_reenvio()
+    {
+        var p = new AvisosPendentes();
+        p.Guardar(Turbo, At(14));
+        Assert.Empty(p.Concluir(Dev, "Conforto", Turbo.Commands, ResultadoEnvio.Failed));
+
+        Assert.Single(p.Concluir(Dev, "Conforto", Turbo.Commands, ResultadoEnvio.Deferred));
+    }
+
+    [Fact]
+    public void Aviso_expira_depois_do_prazo()
+    {
+        var p = new AvisosPendentes();
+        p.Guardar(Turbo, At(14));
+        p.Expirar(At(14, 16));
+
+        Assert.Empty(p.Concluir(Dev, "Conforto", Turbo.Commands, ResultadoEnvio.Ok));
     }
 }

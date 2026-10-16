@@ -100,11 +100,19 @@ alguns graus são esperadas.
 
 ### A temperatura de dentro não bate com a do meu termômetro
 
-O sensor fica no próprio aparelho, perto do teto, e costuma marcar mais que a altura da mesa. Em
-**Ajustes** → **Sensor de temperatura**, some de -3 a +3 °C à leitura daquele aparelho. As regras e o
-painel passam a usar o valor corrigido, e o cômodo mostra ao lado a leitura bruta ("sensor 27").
-Para calibrar, deixe um
-termômetro na mesa por alguns minutos com o ar desligado e compare.
+O sensor fica no próprio aparelho e mede em graus inteiros: "24" é qualquer coisa entre 23,5 e
+24,5 °C. Numa sala de 3 m medida com termômetro na mesa, o aparelho marcou só 0,5 a 0,7 °C a mais, com
+o ar ligado ou desligado. Diferença abaixo de 1 °C não pede correção.
+
+Se a sua for maior, em **Ajustes** → **Sensor de temperatura**, some de -3 a +3 °C à leitura daquele
+aparelho. As regras e o painel passam a usar o valor corrigido, e o cômodo mostra ao lado a leitura
+bruta ("sensor 27").
+
+Para calibrar:
+1. Deixe o termômetro na mesa, longe do monitor, do PC, do sol e do jato do ar.
+2. Espere 30 min antes da primeira leitura: termômetro recém-chegado ainda está se ajustando.
+3. Compare duas vezes: com o ar ligado há 30 min e com ele desligado há 30 min.
+4. Use a correção que serve às duas situações, arredondada para o grau inteiro mais próximo.
 
 ### O Conforto avisou que lá fora está mais fresco e não ligou o ar
 

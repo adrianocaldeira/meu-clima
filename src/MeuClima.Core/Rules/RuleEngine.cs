@@ -155,6 +155,11 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
         return p.Cmds.Aggregate(reading, (s, c) => c.ApplyTo(s));
     }
 
+    private static string NomeDoModo(AcMode m) => m switch
+    {
+        AcMode.Cool => "Frio", AcMode.Heat => "Quente", AcMode.FanOnly => "Ventilar", AcMode.Dry => "Desumidificar", _ => "Auto",
+    };
+
     public EngineResult Evaluate(RuleContext ctx)
     {
         var expected = ctx.Devices.ToDictionary(kv => kv.Key, kv => Expected(kv.Value, ctx.Now));
@@ -192,19 +197,26 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
                 else if (!expected.TryGetValue(deviceId, out var dev) || !dev.Connected) bloqueio = "aparelho sem conexão";
                 else if (Velha(deviceId)) bloqueio = $"sem leitura nova desde {dev.ReadAt.ToOffset(ctx.TimeZone.GetUtcOffset(dev.ReadAt)):HH\\:mm}";
 
+                // Ajustar antes do Plan: alvo limitado à faixa vira o esperado e não reenvia a cada ciclo.
+                IReadOnlyList<DeviceCommand> cabe = [];
+                if (bloqueio is null)
+                {
+                    cabe = CommandPlanner.Fit([.. desired], Capabilities(deviceId), out var fora);
+                    var foraTexto = string.Join(", ", fora);
+                    if (_foraRegistrado.GetValueOrDefault((deviceId, rule.Name), "") != foraTexto)
+                    {
+                        _foraRegistrado[(deviceId, rule.Name)] = foraTexto;
+                        if (fora.Count > 0)
+                            traces.Add(new RuleTrace(rule.Name, deviceId, $"fora do que o aparelho aceita: {foraTexto}{(cabe.Count == 0 ? "; nada enviado" : "")}"));
+                    }
+                    if (fora.OfType<DeviceCommand.SetMode>().FirstOrDefault() is { } modo)
+                        bloqueio = $"o aparelho não aceita o modo {NomeDoModo(modo.Mode)}";
+                }
+
                 if (output.Status is { } st) active.Add(new ActiveRule(rule.Config.Id, deviceId, st, bloqueio));
                 if (bloqueio is not null) continue;
 
                 owner[deviceId] = rule;
-                // Ajustar antes do Plan: alvo limitado à faixa vira o esperado e não reenvia a cada ciclo.
-                var cabe = CommandPlanner.Fit([.. desired], Capabilities(deviceId), out var fora);
-                var foraTexto = string.Join(", ", fora);
-                if (_foraRegistrado.GetValueOrDefault((deviceId, rule.Name), "") != foraTexto)
-                {
-                    _foraRegistrado[(deviceId, rule.Name)] = foraTexto;
-                    if (fora.Count > 0)
-                        traces.Add(new RuleTrace(rule.Name, deviceId, $"fora do que o aparelho aceita: {foraTexto}{(cabe.Count == 0 ? "; nada enviado" : "")}"));
-                }
                 var plan = CommandPlanner.Plan(expected[deviceId], cabe);
                 if (plan.Count > 0)
                     commands.Add(new PlannedCommands(deviceId, rule.Name, plan)

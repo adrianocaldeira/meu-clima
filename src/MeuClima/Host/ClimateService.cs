@@ -16,7 +16,6 @@ public sealed class ClimateService : IDisposable
     public static readonly TimeSpan RuleRetryAfterFailure = TimeSpan.FromMinutes(1);
     public static readonly TimeSpan RuleRetryAfterReject = TimeSpan.FromMinutes(10);
     /// <summary>Aviso de ação que não chegou ao aparelho até aqui é descartado.</summary>
-    public static readonly TimeSpan PendingNoticeTtl = TimeSpan.FromMinutes(15);
     public const int MaxSensorOffsetC = 3;
 
     private static TimeSpan ConfirmationFor(AppSettings s) =>
@@ -44,7 +43,8 @@ public sealed class ClimateService : IDisposable
     private readonly Dictionary<string, DateTimeOffset> _lastRuleSend = [];
     private readonly Dictionary<(string Device, string Rule), DateTimeOffset> _ruleRetryAt = [];
     private readonly HashSet<(string Device, string Origem)> _rejectNotified = [];
-    private readonly Dictionary<(string Device, string Rule), List<(Notification Aviso, DateTimeOffset Em, IReadOnlyList<DeviceCommand> Cmds)>> _avisosPendentes = [];    private readonly Dictionary<string, SaidaEstagio> _saidaEstagio = [];
+    private readonly AvisosPendentes _avisosPendentes = new();
+    private readonly Dictionary<string, SaidaEstagio> _saidaEstagio = [];
     private readonly Dictionary<(string Rule, string Device), string> _logAtivas = [];
     private readonly Dictionary<string, string> _temperaturasLidas = [];
     private volatile IReadOnlyList<ShutdownDecision> _planoDesligamento = [];
@@ -237,40 +237,21 @@ public sealed class ClimateService : IDisposable
 
         foreach (var n in result.Notifications) Raise(n.Title, n.Body);
         _rejectNotified.RemoveWhere(k => !result.Commands.Any(p => p.DeviceId == k.Device && p.RuleName == k.Origem));
-        foreach (var lista in _avisosPendentes.Values) lista.RemoveAll(a => now - a.Em > PendingNoticeTtl);
+        _avisosPendentes.Expirar(now);
         foreach (var plan in result.Commands)
         {
             var chave = (plan.DeviceId, plan.RuleName);
-            GuardarAvisos(chave, plan.Notifications, plan.Commands, now);
+            _avisosPendentes.Guardar(plan, now);
             if (_lastRuleSend.TryGetValue(plan.DeviceId, out var last) && now - last < RuleCommandGap) continue;
             if (_ruleRetryAt.TryGetValue(chave, out var retry) && now < retry) continue;
             _lastRuleSend[plan.DeviceId] = now;
             // A regra planejaria o mesmo comando a cada ciclo: recusa espera mais que falha de rede.
-            var resultado = await SendAsync(plan.DeviceId, plan.Commands, plan.RuleName, now, ct);
-            if (resultado is SendResult.Ok or SendResult.Deferred) LiberarAvisos(chave, plan.Commands);
-            // Falha de rede ou timeout podem ter aplicado o comando: o aviso espera o reenvio (ou o prazo).
-            else if (resultado == SendResult.Rejected) _avisosPendentes.Remove(chave);
-            if (resultado == SendResult.Ok) _ruleRetryAt.Remove(chave);
-            else _ruleRetryAt[chave] = now + (resultado == SendResult.Rejected ? RuleRetryAfterReject : RuleRetryAfterFailure);
+            var (resultado, aceitos) = await SendAsync(plan.DeviceId, plan.Commands, plan.RuleName, now, ct);
+            foreach (var a in _avisosPendentes.Concluir(plan.DeviceId, plan.RuleName, aceitos, resultado)) Raise(a.Title, a.Body);
+            if (resultado == ResultadoEnvio.Ok) _ruleRetryAt.Remove(chave);
+            else _ruleRetryAt[chave] = now + (resultado == ResultadoEnvio.Rejected ? RuleRetryAfterReject : RuleRetryAfterFailure);
         }
         AtualizarPlanoDesligamento(now);
-    }
-
-    /// <summary>Aviso de ação ("Conforto ligou o ar") espera o aparelho aceitar o comando.</summary>
-    private void GuardarAvisos((string, string) chave, IReadOnlyList<Notification> avisos, IReadOnlyList<DeviceCommand> cmds, DateTimeOffset now)
-    {
-        if (avisos.Count == 0) return;
-        if (!_avisosPendentes.TryGetValue(chave, out var lista)) _avisosPendentes[chave] = lista = [];
-        foreach (var a in avisos)
-            if (!lista.Any(x => x.Aviso.Title == a.Title && x.Aviso.Body == a.Body)) lista.Add((a, now, cmds));
-    }
-
-    /// <remarks>Só o aviso cujo plano tem algum comando aceito: o envio de outra fase não confirma o turbo recusado.</remarks>
-    private void LiberarAvisos((string, string) chave, IReadOnlyList<DeviceCommand> enviados)
-    {
-        if (!_avisosPendentes.TryGetValue(chave, out var lista)) return;
-        foreach (var (a, _, _) in lista.Where(x => x.Cmds.Intersect(enviados).Any())) Raise(a.Title, a.Body);
-        lista.RemoveAll(x => x.Cmds.Intersect(enviados).Any());
     }
 
     private int SensorOffset(string deviceId) =>
@@ -302,7 +283,6 @@ public sealed class ClimateService : IDisposable
         }));
     }
 
-    private enum SendResult { Ok, Rejected, Failed, Deferred }
 
     private static string Descrever(DeviceSnapshot s) => !s.Connected ? "sem conexão"
         : $"{(s.On ? "ligado" : "desligado")} {s.Mode} {s.Fan} alvo {s.TargetC?.ToString() ?? "-"} dentro {s.AmbientC?.ToString() ?? "-"}{(s.EnergySaving == true ? " eco" : "")}";
@@ -326,11 +306,11 @@ public sealed class ClimateService : IDisposable
 
     private const string UserOrigin = "você";
 
-    private async Task<SendResult> SendAsync(string deviceId, IReadOnlyList<DeviceCommand> cmds, string origem,
+    private async Task<(ResultadoEnvio Resultado, IReadOnlyList<DeviceCommand> Aceitos)> SendAsync(string deviceId, IReadOnlyList<DeviceCommand> cmds, string origem,
         DateTimeOffset now, CancellationToken ct)
     {
         var enviados = new List<DeviceCommand>();
-        var resultado = SendResult.Ok;
+        var resultado = ResultadoEnvio.Ok;
         DeviceCommand? incerto = null;
         try
         {
@@ -344,7 +324,7 @@ public sealed class ClimateService : IDisposable
                 if (!r.Ok && r.Outcome == CommandOutcome.Rejected && origem != UserOrigin && enviados.Count > 0)
                 {
                     Log.Write($"{origem}: {c} adiado em {NameOf(deviceId)}, aparelho ainda trocando de modo: {r.Detail}");
-                    resultado = SendResult.Deferred;
+                    resultado = ResultadoEnvio.Deferred;
                     break;
                 }
                 if (!r.Ok)
@@ -356,7 +336,7 @@ public sealed class ClimateService : IDisposable
                         Raise("Comando não aplicado", recusa
                             ? $"{NameOf(deviceId)} recusou um ajuste de {origem}."
                             : $"A Electrolux não respondeu ao ajuste de {origem} em {NameOf(deviceId)}. Tente de novo.");
-                    resultado = recusa ? SendResult.Rejected : SendResult.Failed;
+                    resultado = recusa ? ResultadoEnvio.Rejected : ResultadoEnvio.Failed;
                     break;
                 }
                 enviados.Add(c);
@@ -368,9 +348,9 @@ public sealed class ClimateService : IDisposable
             if (ex is not TaskCanceledException || ct.IsCancellationRequested) incerto = null;
             Log.Write($"{origem}: envio para {deviceId} falhou: {ex.Message}{(incerto is null ? "" : $"; {incerto} fica como pendente")}");
             if (origem == UserOrigin) Raise("Comando não aplicado", $"Não deu para falar com a Electrolux agora. Tente de novo.");
-            resultado = SendResult.Failed;
+            resultado = ResultadoEnvio.Failed;
         }
-        if (resultado == SendResult.Ok) _rejectNotified.Remove((deviceId, origem));
+        if (resultado == ResultadoEnvio.Ok) _rejectNotified.Remove((deviceId, origem));
         // O comando do usuário entra no estado otimista antes do envio; o que não foi aplicado sai dele.
         else _engine.DiscardPending(deviceId, cmds.Skip(enviados.Count + (incerto is null ? 0 : 1)));
         if (enviados.Count > 0)
@@ -380,7 +360,7 @@ public sealed class ClimateService : IDisposable
             Log.Write($"{origem} → {NameOf(deviceId)}: {string.Join(", ", enviados)}");
         }
         if (incerto is not null) _engine.RecordSent(deviceId, [incerto], now);
-        return resultado;
+        return (resultado, enviados);
     }
 
     // ---- ações vindas da tela ----

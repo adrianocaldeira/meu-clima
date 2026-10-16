@@ -87,6 +87,7 @@ public static class ViewStateBuilder
                 nightMode = noite,
                 caps = new
                 {
+                    known = cap is { Modes.Count: > 0 },
                     modes = (cap?.Modes ?? [AcMode.Auto, AcMode.Cool, AcMode.FanOnly]).Select(m => ModeApi(m)),
                     fans = (cap?.FanSpeeds ?? [FanSpeed.Auto, FanSpeed.Low, FanSpeed.Middle, FanSpeed.High, FanSpeed.Turbo]).Select(f => FanApi(f)),
                     min = cap?.MinTargetC ?? 16,

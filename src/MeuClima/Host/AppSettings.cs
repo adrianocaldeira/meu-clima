@@ -96,7 +96,10 @@ public sealed class SettingsStore
         var texto = File.ReadAllText(AppPaths.Settings);
         try
         {
-            return (JsonSerializer.Deserialize<AppSettings>(texto, Json.Options) ?? new(), false);
+            var lido = JsonSerializer.Deserialize<AppSettings>(texto, Json.Options) ?? new();
+            if (CampoDesconhecido(texto) is { } campo)
+                Log.Write($"settings.json tem campo que esta versão não conhece ({campo}); ele é ignorado e some na próxima gravação.");
+            return (lido, false);
         }
         // NotSupportedException: regra sem "tipo" (o System.Text.Json não cria a classe abstrata).
         catch (Exception ex) when (ex is JsonException or NotSupportedException && JsonValido(texto))
@@ -112,6 +115,19 @@ public sealed class SettingsStore
             File.Copy(AppPaths.Settings, AppPaths.Settings + ".corrompido", overwrite: true);
             return (new(), false);
         }
+    }
+
+    private static readonly JsonSerializerOptions Estrito = new(Json.Options) { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };
+
+    /// <summary>Caminho do primeiro campo que o <see cref="AppSettings"/> não mapeia, ou null.</summary>
+    public static string? CampoDesconhecido(string texto)
+    {
+        try
+        {
+            JsonSerializer.Deserialize<AppSettings>(texto, Estrito);
+            return null;
+        }
+        catch (JsonException ex) { return ex.Path ?? ex.Message; }
     }
 
     private static bool JsonValido(string texto)

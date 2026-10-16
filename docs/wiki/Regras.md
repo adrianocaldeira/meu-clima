@@ -44,14 +44,16 @@ Os valores abaixo são os **padrões**; os ajustáveis aparecem na configuraçã
   comandos ao mesmo aparelho.
 - **Atraso normal** — o aparelho leva cerca de 30 s para refletir um comando no estado que a API informa.
 - **Aviso só com comando aceito** — avisos como "Conforto ligou o ar" ou "Desliguei o ar" só aparecem
-  depois que a Electrolux aceita o comando. Comando recusado ou sem conexão não gera aviso.
+  depois que a Electrolux aceita o comando. Comando recusado não gera aviso. Sem conexão, o aviso
+  espera o reenvio por até 15 min.
 - **O que o aparelho aceita** — ventilação que o aparelho não declara sai do comando, e um alvo fora
   da faixa dele vai para o limite. Modo que ele não declara (ex.: Quente num aparelho só de Frio)
   cancela o comando inteiro, para não ligar o ar no modo errado. O log registra o que ficou de fora.
 - **Correção do sensor** — em **Ajustes** → **Sensor de temperatura**, dá para somar de -3 a +3 °C à
   leitura de cada aparelho. Regras e painel usam o valor corrigido; o cômodo mostra ao lado a
   leitura bruta ("sensor 27"). Ao mudar a correção, a Janela aberta ignora as leituras anteriores.
-  Use quando um termômetro na altura da mesa marcar diferente do aparelho.
+  Use quando um termômetro na altura da mesa marcar 1 °C ou mais de diferença do aparelho; como
+  calibrar está no [[FAQ]].
 
 ---
 
@@ -70,7 +72,7 @@ opcional; sem ela, vale para qualquer dia e hora. "Só com alguém no PC" pode s
   Um turbo novo só começa com pelo menos 10 min de saldo; até lá, Frio econômico. Esgotado o tempo,
   volta ao Frio econômico e só tenta o turbo de novo depois que dentro chegar à máxima. Se o turbo inteiro passar
   sem a leitura baixar nem 1 °C, o painel avisa que o sensor do aparelho parece travado (ele fica
-  no aparelho, perto do teto, e pode marcar mais que a altura da mesa).
+  no aparelho, perto do teto, e com o turbo pode medir o ar frio que volta para ele).
 - **Na mínima** por 10 min: **só ventila** (compressor desligado, ventilação baixa). Com "Só ventilar"
   desligado, desliga o ar. Volta ao frio quando dentro passar da máxima pelo mesmo tempo; enquanto espera, o painel diz
   desde quando passou e até que horas espera.
@@ -99,7 +101,7 @@ opcional; sem ela, vale para qualquer dia e hora. "Só com alguém no PC" pode s
 
 **Por que não usa o modo Auto:** o Auto aquece sozinho quando dentro fica abaixo do alvo, o que nas
 manhãs frias gasta energia sem você pedir. **Aquecer abaixo da mínima** existe como opção e vem
-desligado.
+desligado. Em aparelho sem o modo Quente, a opção fica travada.
 
 **Quando para:** você longe do PC ou fim da agenda. Ao parar, **não desliga** o aparelho (quem desliga
 na ausência é a regra "Ausente"); se estava no turbo, só tira a ventilação do Turbo.
@@ -187,7 +189,8 @@ cria uma, se não existir).
 - Enquanto o PC estiver ligado, **sobe 1 °C por hora**, a partir do alvo do momento, com teto de 28 °C.
   Aquecendo, não sobe: mantém o alvo.
 - Se você mudar ou zerar o timer pelo painel do Meu Clima, o Modo noite não programa outro naquela
-  noite. Timer mudado pelo controle ou pelo celular não é detectado.
+  noite. Timer zerado ou trocado pelo controle ou pelo celular também passa a ser seu: o app registra
+  no log e não reprograma.
 - Se o timer não chegar ao aparelho, o próprio app desliga o ar ao fim das 4 h (com o PC ligado).
 - Ao cancelar, o app zera o timer que o Modo noite programou.
 

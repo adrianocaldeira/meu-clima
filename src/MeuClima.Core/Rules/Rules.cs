@@ -666,6 +666,9 @@ public sealed class ModoNoiteState
     public bool TimerEnviado { get; set; }
     /// <summary>O timer no aparelho bate com o fim do modo noite; só esse é zerado ao cancelar.</summary>
     public bool TimerDoModoNoite { get; set; }
+    /// <summary>Timer (s) da avaliação anterior e a hora da leitura que o mostrou: base para ver mudança feita fora do app.</summary>
+    public int? TimerVisto { get; set; }
+    public DateTimeOffset? TimerVistoEm { get; set; }
     public DateOnly? UltimoDiaAgendado { get; set; }
 }
 
@@ -688,6 +691,29 @@ public sealed class ModoNoiteRule(ModoNoiteConfig cfg) : Rule<ModoNoiteConfig, M
         if (!Active) return;
         State.TimerEnviado = true;
         State.TimerDoModoNoite = false;
+    }
+
+    /// <summary>Timer do modo noite mudado pelo controle ou pelo celular: passa a ser do usuário.</summary>
+    /// <remarks>
+    /// Não se sabe se o stopTime da API conta para baixo ou fica no valor programado: aceita os dois. Zerado
+    /// longe do fim, ou longe dos dois valores esperados, foi mudança de fora.
+    /// </remarks>
+    private void ConferirTimer(RuleOutput o, DeviceSnapshot dev, TimeSpan restanteAteFim)
+    {
+        if (!dev.Connected) return;
+        var st = dev.StopTimeSeconds ?? 0;
+        if (State.TimerDoModoNoite && State.TimerVisto is { } antes && State.TimerVistoEm is { } em && dev.ReadAt > em)
+        {
+            var passou = (int)(dev.ReadAt - em).TotalSeconds;
+            bool Perto(int esperado) => Math.Abs(st - esperado) <= 120;
+            if (st == 0 ? restanteAteFim > TimeSpan.FromMinutes(5) : !Perto(antes) && !Perto(antes - passou))
+            {
+                o.Trace(Cfg.DeviceId, $"timer mudado fora do app: {antes / 60} → {st / 60} min; o modo noite não reprograma");
+                TimerDoUsuario();
+            }
+        }
+        // Valor repetido (timer fixo ou o otimista do envio, que dura minutos) não move a base da contagem.
+        if (st != State.TimerVisto) (State.TimerVisto, State.TimerVistoEm) = (st, dev.ReadAt);
     }
 
     public override RuleOutput Evaluate(RuleContext ctx)
@@ -714,6 +740,7 @@ public sealed class ModoNoiteRule(ModoNoiteConfig cfg) : Rule<ModoNoiteConfig, M
             // O pedido é o restante arredondado para cima em horas; um timer bem mais curto foi o usuário que pôs.
             State.TimerDoModoNoite |= TimeSpan.FromSeconds(st) >= restanteAteFim - TimeSpan.FromMinutes(15);
         }
+        ConferirTimer(o, dev, restanteAteFim);
 
         if (decorrido >= TimeSpan.FromHours(Cfg.DurationHours))
         {

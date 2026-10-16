@@ -6,6 +6,17 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+### Adicionado
+- "Modo noite" percebe o timer zerado ou trocado pelo controle ou pelo celular: o timer passa a ser
+  seu e o app não reprograma.
+- Regra que pede um modo que o aparelho não tem (ex.: Quente num aparelho só de Frio) aparece
+  bloqueada com o motivo, e "Aquecer abaixo da mínima" fica travado nesse aparelho.
+- O log avisa quando o `settings.json` tem campo que esta versão não conhece.
+
+### Mudado
+- Ajuda do sensor de temperatura e FAQ com o passo a passo de calibração: diferença abaixo de 1 °C
+  não pede correção.
+
 ### Corrigido
 - Com o Modo noite ou uma pausa manual no comando, o log registrava a mesma troca de fase do
   "Conforto" a cada 5 s.

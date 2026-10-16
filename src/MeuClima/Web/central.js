@@ -27,11 +27,11 @@
           num('maxC', 'Máxima', '°C', 16, 30, 1, 'Acima dela por 5 min, liga em Frio econômico com este alvo.')] },
         { title: 'Como economiza', fields: [
           bool('fanAtMin', 'Só ventilar ao chegar na mínima', 'Desliga o compressor e mantém o ar circulando. Desligado: o ar desliga.'),
-          bool('allowHeat', 'Aquecer abaixo da mínima', 'Desligado: nunca aquece. Por isso o Conforto não usa o modo Auto, que aquece sozinho.'),
-          num('coolerOutsideC', 'Avisar quando a sensação lá fora estiver mais fresca em', '°C', 1, 15, 0.5, 'Abrir a janela resfria sem gastar energia.')] },
+          { ...bool('allowHeat', 'Aquecer abaixo da mínima', 'Desligado: nunca aquece. Por isso o Conforto não usa o modo Auto, que aquece sozinho.'), needsMode: ['HEAT', 'Quente'] },
+          num('coolerOutsideC', 'Sugerir abrir a janela quando lá fora estiver mais fresco em', '°C', 1, 15, 0.5, 'Pela temperatura, com o ar de fora seco. Antes de ligar, espera 20 min.')] },
         { title: 'Calor forte', fields: [
-          num('turboFromC', 'Turbo a partir de', '°C', 17, 35, 1, 'Dentro, por 5 min. O turbo vai até a máxima.'),
-          num('maxTurboMin', 'Turbo por no máximo', 'min', 5, 120, 5),
+          num('turboFromC', 'Turbo a partir de', '°C', 17, 35, 1, 'Dentro, por 2 min. O turbo vai até a máxima.'),
+          num('maxTurboMin', 'Turbo por no máximo', 'min', 5, 120, 5, 'Somando os turbos de cada 2 h.'),
           num('preCoolApparentC', 'Antecipar se a sensação prevista passar de', '°C', 20, 45, 0.5, 'Liga antes, com dentro já na máxima, para não precisar do turbo.'),
           num('preCoolLeadMin', 'Antecipar em', 'min', 5, 180, 5)] },
         { title: 'Quando vale', fields: [
@@ -240,8 +240,14 @@
     switch (f.t) {
       case 'num':
         return `<div class="fld"><label for="${fid}">${f.label}</label><span class="unit"><input id="${fid}" class="inp num${inv}" type="number" inputmode="decimal" data-f="${f.k}" data-k="${fid}" min="${f.min}" max="${f.max}" step="${f.step}" value="${esc(v == null || (typeof v === 'number' && isNaN(v)) ? '' : v)}"><em>${f.unit}</em></span>${hint}${err}</div>`;
-      case 'bool':
-        return `<div class="fld"><span class="lb" id="${fid}-l">${f.label}</span><button class="pwr" data-fb="${f.k}" data-k="${fid}" aria-pressed="${!!v}" aria-labelledby="${fid}-l"></button>${hint}${err}</div>`;
+      case 'bool': {
+        // Opção que depende de um modo que o aparelho escolhido não tem: fica desligada e travada.
+        const dev = f.needsMode && state.devices.find(d => d.id === cfg.deviceId);
+        const falta = dev && dev.caps && dev.caps.known && !dev.caps.modes.includes(f.needsMode[0]);
+        if (falta) cfg[f.k] = false;
+        const dica = falta ?`<span class="hint">${esc(dev.name)} não tem o modo ${f.needsMode[1]}.</span>` : hint;
+        return `<div class="fld"><span class="lb" id="${fid}-l">${f.label}</span><button class="pwr" data-fb="${f.k}" data-k="${fid}" aria-pressed="${!!v && !falta}" aria-labelledby="${fid}-l"${falta ? ' disabled' : ''}></button>${dica}${err}</div>`;
+      }
       case 'select':
         return `<div class="fld"><label for="${fid}">${f.label}</label><select id="${fid}" class="inp" data-f="${f.k}" data-k="${fid}">${f.opts.map(([val, t]) => `<option value="${val}"${val === v ? ' selected' : ''}>${t}</option>`).join('')}</select>${hint}${err}</div>`;
       case 'device': {
@@ -447,7 +453,7 @@
         <div class="set"><div><b>Atualizar os aparelhos</b><span>Lê o estado na nuvem da Electrolux.</span></div>${segSet('deviceIntervalMin', [1, 2, 5], s.deviceIntervalMin, 'Intervalo dos aparelhos')}</div>
       </div>
       ${state.devices.length ? `<div class="card stack" style="gap:0"><h3>Sensor de temperatura</h3>
-        <p class="small muted" style="margin:0 0 4px">O sensor fica dentro do aparelho, perto do teto, e pode marcar diferente do cômodo. Compare com um termômetro na altura da mesa e corrija aqui. As regras usam o valor corrigido.</p>
+        <p class="small muted" style="margin:0 0 4px">O sensor do aparelho mede em graus inteiros. Compare com um termômetro na mesa, com o ar ligado e desligado há 30 min; diferença abaixo de 1 °C não pede correção. As regras usam o valor corrigido.</p>
         ${state.devices.map(d => `<div class="set"><div><b>${esc(d.name)}</b><span>${d.ambientC == null ? 'Sem leitura agora.' : `Sensor ${nf(d.ambientC - (d.sensorOffsetC || 0), 0)} °C, corrigido ${nf(d.ambientC, 0)} °C.`}</span></div><span class="unit"><input class="inp num" type="number" inputmode="numeric" aria-label="Correção do sensor de ${esc(d.name)}" data-offset="${esc(d.id)}" data-k="off:${esc(d.id)}" min="-3" max="3" step="1" value="${d.sensorOffsetC || 0}"><em>°C</em></span></div>`).join('')}
       </div>` : ''}
       <div class="card stack" style="gap:0"><h3>Estimativa de energia</h3>
