@@ -6,6 +6,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+## [0.3.1] — 2026
+
 ### Adicionado
 - "Modo noite" percebe o timer zerado ou trocado pelo controle ou pelo celular: o timer passa a ser
   seu e o app não reprograma.
@@ -197,7 +199,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
   portable abre a página da release.
 - Instalador (Inno Setup), sem exigir administrador.
 
-[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.3.0...HEAD
+[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.3.1
 [0.3.0]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.3.0
 [0.2.4]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.4
 [0.2.3]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.3
