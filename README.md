@@ -59,7 +59,7 @@ com a API da Electrolux e com o Open-Meteo.
 
 | Regra | Em uma frase |
 |---|---|
-| **Conforto** | Mantém dentro entre 23 e 24 °C: Frio econômico, só ventila na mínima, turbo só no calor forte. Liga antes do calor pela sensação térmica prevista. |
+| **Conforto** | Mantém dentro entre 23 e 24 °C: Frio econômico, só ventila na mínima, turbo só no calor forte (até 30 min a cada 2 h). Liga antes do calor pela sensação térmica prevista; com lá fora mais fresco, sugere abrir a janela antes de ligar. |
 | **Ausente** | Tela bloqueada, PC suspenso ou desligando: desliga na hora (fora da pausa por ajuste manual). Sem uso: alivia aos 20 min, desliga aos 60. Na volta, as regras decidem. |
 | **Janela aberta** | Ligado em Frio e o ambiente esquentando sem voltar: desliga, avisa e diz o motivo. |
 | **Modo noite** | Timer de 4 h no próprio aparelho e +1 °C por hora. |
@@ -139,7 +139,7 @@ Detalhes na [Wiki/Arquitetura](https://github.com/adrianocaldeira/meu-clima/wiki
 
 ## 🗺️ Roadmap
 
-### ✅ Já entregue (v0.2.0)
+### ✅ Já entregue (v0.3.0)
 - Controle do ar-condicionado Electrolux pela bandeja, para todos os aparelhos da conta
 - Clima externo e previsão do dia via Open-Meteo
 - 4 regras automáticas: Conforto, Ausente, Janela aberta e Modo noite; as da v0.1 migram sozinhas
@@ -150,6 +150,9 @@ Detalhes na [Wiki/Arquitetura](https://github.com/adrianocaldeira/meu-clima/wiki
 - Tema claro, escuro ou do sistema (segue o Windows)
 - Início com o Windows
 - Atualização automática com verificação de integridade
+- Correção da leitura de temperatura por aparelho (-3 a +3 °C)
+- Conforto mais estável: tolera leitura isolada fora da curva, protege o compressor (5 min entre
+  ligar e desligar) e limita o turbo a 30 min a cada 2 h
 
 Sugestões? [Crie uma issue](https://github.com/adrianocaldeira/meu-clima/issues/new/choose).
 
