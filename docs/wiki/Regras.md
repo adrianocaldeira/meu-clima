@@ -3,7 +3,7 @@
 As regras rodam **dentro do Meu Clima, no seu PC**. Elas só executam com o PC ligado, o app aberto
 (na bandeja) e você **logado no Windows**. PC desligado, hibernado ou na tela de login = nenhuma regra
 avalia nada. A única ação que sobrevive ao PC desligado é o timer que o **Modo noite** programa no
-próprio aparelho.
+próprio aparelho. Na hora em que o PC desliga ou suspende, o **Ausente** desliga o ar (veja abaixo).
 
 O app lê os aparelhos a cada 1 minuto (configurável: 1, 2 ou 5) e o clima a cada 15 minutos
 (15, 30 ou 60), em **Ajustes**. As regras ligadas são avaliadas a cada poucos segundos com a última
@@ -35,7 +35,11 @@ Os valores abaixo são os **padrões**; os ajustáveis aparecem na configuraçã
   comandou (controle remoto, app do celular). No painel, **Mais ajustes** → **Pausar 1 h** pausa um
   aparelho por conta própria, e o menu **⋯** → **Pausar as regras por 1 h** pausa todos. Na linha
   "Você" do aparelho, **Retomar agora** encerra a pausa antes da hora. O ajuste manual também zera o que o
-  Conforto e a Janela aberta estavam fazendo: ao fim da pausa, recomeçam do zero.
+  Conforto e a Janela aberta estavam fazendo: ao fim da pausa, recomeçam do zero. A pausa continua
+  valendo se o app reiniciar (atualização, PC desligado e ligado de novo).
+- **Leitura recente** — nenhuma regra comanda o aparelho com a última leitura mais velha que 3 min
+  (com leitura a cada 1 min): o aparelho pode ter mudado sem o app ver. O painel mostra "sem leitura
+  nova desde HH:mm".
 - **Sem comando à toa** — comando igual ao estado atual não é enviado, e há no mínimo 20 s entre
   comandos ao mesmo aparelho.
 - **Atraso normal** — o aparelho leva cerca de 30 s para refletir um comando no estado que a API informa.
@@ -70,6 +74,9 @@ opcional; sem ela, vale para qualquer dia e hora. "Só com alguém no PC" pode s
   Exceção: se você ligou em **Quente** e "Aquecer abaixo da mínima" está desligado, o Conforto não mexe.
 - Durante a pausa por ajuste manual, ou com uma regra de prioridade maior no comando, o Conforto não
   avança nem avisa; depois recomeça a contagem do zero.
+- **Depois de 10 min sem leitura** (PC desligado ou suspenso, app fechado), o Conforto recomeça do zero:
+  não religa o ar com o que via antes e espera de novo os 5 min acima da máxima. Ar que já está só
+  ventilando dentro da faixa continua ventilando.
 
 **Por que não usa o modo Auto:** o Auto aquece sozinho quando dentro fica abaixo do alvo, o que nas
 manhãs frias gasta energia sem você pedir. **Aquecer abaixo da mínima** existe como opção e vem
@@ -91,8 +98,12 @@ a sua região, não da sua janela.
 **Ausência:** tela bloqueada (Win+L), PC em suspensão ou 5 min sem uso de teclado e mouse.
 
 **O que faz:**
-- **Tela bloqueada ou PC suspenso:** desliga **na hora**. Dá para esperar alguns minutos antes (útil
-  para pausas curtas) ou desligar essa opção.
+- **Tela bloqueada:** desliga **na hora**. Dá para esperar alguns minutos antes (útil para pausas
+  curtas) ou desligar essa opção.
+- **PC desligando, suspendendo ou saindo da sessão:** desliga o ar na hora, antes de o PC apagar.
+  Não desliga se há ajuste manual em vigor (você ligou de propósito) ou Modo noite ativo (o timer do
+  aparelho cuida). A opção "Desligar quando o PC desligar ou suspender" vem ligada; desligada, o ar
+  fica como está.
 - **Sem uso do PC**, com a tela desbloqueada: com **20 min**, passa para Frio 26 °C (alívio); com
   **60 min**, desliga. Se estava no Turbo, o alívio também volta a ventilação para Auto. Se o ar estava aquecendo, não alivia: só desliga no tempo.
 - **Na volta:** as regras ativas, como o Conforto, decidem se o ar liga de novo. Com "Voltar ao
@@ -101,8 +112,9 @@ a sua região, não da sua janela.
 
 Com o aparelho desligado, a regra não faz nada.
 
-**Atenção:** é ausência **do PC**. Se você estiver na sala sem mexer no computador, a regra age. A
-suspensão só desliga o ar se o app tiver tempo de enviar o comando antes de o PC dormir.
+**Atenção:** é ausência **do PC**. Se você estiver na sala sem mexer no computador, a regra age. No
+desligamento o Windows dá poucos segundos: o app envia um único comando, sem renovar o acesso à
+Electrolux. Sem internet nesse instante, o ar fica ligado; o log registra o que aconteceu.
 
 ---
 

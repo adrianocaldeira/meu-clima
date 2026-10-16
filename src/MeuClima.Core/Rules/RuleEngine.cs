@@ -8,10 +8,15 @@ public enum ActiveKind { Acting, Watching, Waiting }
 
 public sealed record ActiveRule(string RuleId, string DeviceId, RuleStatus Status, string? BlockedBy, ActiveKind Kind = ActiveKind.Acting);
 
+public sealed record RuleTrace(string RuleName, string DeviceId, string Text);
+
 public sealed record EngineResult(
     IReadOnlyList<PlannedCommands> Commands,
     IReadOnlyList<Notification> Notifications,
-    IReadOnlyList<ActiveRule> Active);
+    IReadOnlyList<ActiveRule> Active)
+{
+    public IReadOnlyList<RuleTrace> Traces { get; init; } = [];
+}
 
 /// <summary>Avalia as regras, decide quem controla cada aparelho e planeja o que enviar.</summary>
 /// <remarks>
@@ -25,6 +30,9 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
 
     /// <summary>Precisa cobrir o intervalo de leitura; senão o próprio comando volta como "manual".</summary>
     public TimeSpan ConfirmationWindow { get; set; } = DefaultConfirmationWindow;
+
+    /// <summary>Entre leituras mais distantes que isto (suspensão, rede fora), não dá para saber quem mudou o aparelho.</summary>
+    public TimeSpan MaxObservationGap { get; set; } = RuleContext.DefaultMaxReadingAge;
 
     private readonly List<IRule> _rules = [.. rules.OrderByDescending(r => r.Priority)];
     private readonly Dictionary<string, DateTimeOffset> _pausedUntil = [];
@@ -41,6 +49,19 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
 
     public void Resume(string deviceId) => _pausedUntil.Remove(deviceId);
 
+    /// <summary>Pausas manuais em JSON, para sobreviver a reinício do app (atualização, PC desligado).</summary>
+    public string SavePauses() => System.Text.Json.JsonSerializer.Serialize(_pausedUntil);
+
+    public void LoadPauses(string json)
+    {
+        try
+        {
+            foreach (var (id, ate) in System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, DateTimeOffset>>(json) ?? [])
+                _pausedUntil[id] = ate;
+        }
+        catch (System.Text.Json.JsonException) { }
+    }
+
     /// <summary>Ajuste do usuário: pausa as automações do aparelho e avisa as regras (ex.: cancela a "Janela aberta").</summary>
     public void ManualChange(string deviceId, DateTimeOffset now)
     {
@@ -52,6 +73,7 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
     public void CopyRuntimeFrom(RuleEngine other)
     {
         ConfirmationWindow = other.ConfirmationWindow;
+        MaxObservationGap = other.MaxObservationGap;
         foreach (var (k, v) in other._pausedUntil) _pausedUntil[k] = v;
         foreach (var (k, v) in other._lastSent) _lastSent[k] = v;
         foreach (var (k, v) in other._pending) _pending[k] = (v.At, [.. v.Cmds]);
@@ -81,7 +103,7 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
     /// <summary>Compara leituras consecutivas; mudança sem comando recente pausa as automações do aparelho.</summary>
     public bool ObserveReading(DeviceSnapshot previous, DeviceSnapshot current, DateTimeOffset now)
     {
-        if (!previous.Connected || !current.Connected) return false;
+        if (!previous.Connected || !current.Connected || current.ReadAt - previous.ReadAt > MaxObservationGap) return false;
         var mudou = previous.On != current.On || previous.Mode != current.Mode || previous.Fan != current.Fan
                     || previous.TargetC != current.TargetC;
         if (!mudou) return false;
@@ -128,10 +150,16 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
     {
         var expected = ctx.Devices.ToDictionary(kv => kv.Key, kv => Expected(kv.Value, ctx.Now));
         var owner = new Dictionary<string, IRule>();
-        var ctxExp = ctx with { Devices = expected, Blocked = id => owner.ContainsKey(id) || PausedUntil(id, ctx.Now) is not null };
+        bool Velha(string id) => ctx.Devices.TryGetValue(id, out var d) && ctx.Now - d.ReadAt > ctx.MaxReadingAge;
+        var ctxExp = ctx with
+        {
+            Devices = expected,
+            Blocked = id => owner.ContainsKey(id) || PausedUntil(id, ctx.Now) is not null || Velha(id),
+        };
         var commands = new List<PlannedCommands>();
         var notes = new List<Notification>();
         var active = new List<ActiveRule>();
+        var traces = new List<RuleTrace>();
 
         foreach (var rule in _rules.Where(r => r.Config.Enabled))
         {
@@ -145,6 +173,7 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
             }
             _failingRules.Remove(rule.Config.Id);
             notes.AddRange(output.Notifications);
+            traces.AddRange(output.Traces.Select(t => new RuleTrace(rule.Name, t.DeviceId, t.Text)));
 
             foreach (var (deviceId, desired) in output.Claims)
             {
@@ -152,6 +181,7 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
                 if (owner.TryGetValue(deviceId, out var dono)) bloqueio = dono.Name;
                 else if (PausedUntil(deviceId, ctx.Now) is { } ate) bloqueio = $"ajuste manual · volta às {ate.ToOffset(ctx.TimeZone.GetUtcOffset(ate)):HH\\:mm}";
                 else if (!expected.TryGetValue(deviceId, out var dev) || !dev.Connected) bloqueio = "aparelho sem conexão";
+                else if (Velha(deviceId)) bloqueio = $"sem leitura nova desde {dev.ReadAt.ToOffset(ctx.TimeZone.GetUtcOffset(dev.ReadAt)):HH\\:mm}";
 
                 if (output.Status is { } st) active.Add(new ActiveRule(rule.Config.Id, deviceId, st, bloqueio));
                 if (bloqueio is not null) continue;
@@ -164,6 +194,6 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
                 if (!output.Claims.ContainsKey(deviceId))
                     active.Add(new ActiveRule(rule.Config.Id, deviceId, st, null, waiting ? ActiveKind.Waiting : ActiveKind.Watching));
         }
-        return new EngineResult(commands, notes, active);
+        return new EngineResult(commands, notes, active) { Traces = traces };
     }
 }

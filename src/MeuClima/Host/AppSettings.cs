@@ -64,13 +64,20 @@ public static class Json
 public sealed class SettingsStore
 {
     private readonly Lock _lock = new();
-    public AppSettings Current { get; private set; } = Load();
+
+    public SettingsStore() => (Current, ReadOnly) = Load();
+
+    public AppSettings Current { get; private set; }
+
+    /// <summary>settings.json de uma versão mais nova: o app roda sem regras e não grava por cima.</summary>
+    public bool ReadOnly { get; }
 
     public AppSettings Update(Func<AppSettings, AppSettings> change)
     {
         lock (_lock)
         {
             Current = change(Current);
+            if (ReadOnly) return Current;
             var tmp = AppPaths.Settings + ".tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(Current, Json.Options));
             File.Move(tmp, AppPaths.Settings, overwrite: true);
@@ -78,20 +85,37 @@ public sealed class SettingsStore
         }
     }
 
-    private static AppSettings Load()
+    private static (AppSettings, bool) Load()
     {
+        if (!File.Exists(AppPaths.Settings)) return (new(), false);
+        var texto = File.ReadAllText(AppPaths.Settings);
         try
         {
-            return File.Exists(AppPaths.Settings)
-                ? JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(AppPaths.Settings), Json.Options) ?? new()
-                : new();
+            return (JsonSerializer.Deserialize<AppSettings>(texto, Json.Options) ?? new(), false);
+        }
+        catch (JsonException ex) when (JsonValido(texto))
+        {
+            // JSON íntegro que esta versão não entende (ex.: regra criada por versão mais nova): recriar as regras
+            // padrão e gravar por cima apagaria a configuração do usuário.
+            Log.Write($"settings.json de outra versão, abrindo só para leitura e sem regras: {ex.Message}");
+            return (new() { DefaultRulesCreated = true }, true);
         }
         catch (JsonException ex)
         {
             Log.Write($"settings.json inválido, usando padrão: {ex.Message}");
             File.Copy(AppPaths.Settings, AppPaths.Settings + ".corrompido", overwrite: true);
-            return new();
+            return (new(), false);
         }
+    }
+
+    private static bool JsonValido(string texto)
+    {
+        try
+        {
+            using var _ = JsonDocument.Parse(texto);
+            return true;
+        }
+        catch (JsonException) { return false; }
     }
 }
 

@@ -64,6 +64,9 @@ public partial class App : Application
 
         _presence = new PresenceMonitor();
         _climate = new ClimateService(settings, new DpapiTokenStore(), _presence);
+        _presence.Suspending += () => DesligarAntesDeSair("PC suspendendo", TimeSpan.FromSeconds(2));
+        SessionEnding += (_, ev) => DesligarAntesDeSair(
+            ev.ReasonSessionEnding == ReasonSessionEnding.Shutdown ? "PC desligando" : "Saindo da sessão", TimeSpan.FromSeconds(4));
         // Só a bandeja pede a central pela ponte; a central nunca envia openCentral.
         _bridge = new UiBridge(_climate, tab => OpenCentral(tab, daBandeja: true), () => _flyout?.Hide(), Quit);
         _tray = new Tray(ToggleFlyout, OpenCentral, Quit);
@@ -94,11 +97,23 @@ public partial class App : Application
 
         _ = Task.Run(() => _climate.RunAsync(_stop.Token));
 
+        if (settings.ReadOnly)
+            _tray.Notify("Ajustes de outra versão", "O settings.json foi gravado por uma versão mais nova do Meu Clima. As regras ficam paradas e nada é gravado até você instalar a versão mais nova.");
+
         var viaBandeja = e.Args.Contains("--bandeja", StringComparer.OrdinalIgnoreCase);
         var s = settings.Current;
         var faltaConfigurar = s.City is null || s.PcDeviceId is null || new DpapiTokenStore().Load() is null;
         if (faltaConfigurar) OpenCentral("setup");
         else if (!viaBandeja) ToggleFlyout();
+    }
+
+    /// <summary>Segura o encerramento até o comando de desligar sair ou o prazo vencer.</summary>
+    /// <remarks>Task.Run: o handler roda numa thread de janela; esperar a tarefa ali sem ela travaria.</remarks>
+    private void DesligarAntesDeSair(string motivo, TimeSpan prazo)
+    {
+        if (_climate is not { } clima) return;
+        try { Task.Run(() => clima.TurnOffForShutdownAsync(motivo, prazo)).Wait(prazo + TimeSpan.FromMilliseconds(500)); }
+        catch (AggregateException ex) { Log.Write($"{motivo}: desligar falhou: {ex.InnerException?.Message}"); }
     }
 
     /// <summary><c>--importar-credenciais &lt;arquivo.json&gt;</c> com <c>{ "apiKey", "refreshToken" }</c>.</summary>

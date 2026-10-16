@@ -85,7 +85,7 @@ public class ConfortoTests
         var r = Rule();
         r.Evaluate(Ctx(At(14), 30, Snap(on: false, ambient: 24)));
 
-        Assert.Empty(r.Evaluate(Ctx(At(15), 30, Snap(on: false, ambient: 24))).Claims);
+        Assert.Empty(r.Evaluate(Ctx(At(14, 10), 30, Snap(on: false, ambient: 24))).Claims);
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public class ConfortoTests
         Assert.Contains(new SetTarget(23), turbo.Claims[Dev]);
         Assert.Equal("Conforto: turbo", Assert.Single(turbo.Notifications).Title);
 
-        var chegou = r.Evaluate(Ctx(At(14, 20), 30, Snap(fan: FanSpeed.Turbo, ambient: 24)));
+        var chegou = r.Evaluate(Ctx(At(14, 12), 30, Snap(fan: FanSpeed.Turbo, ambient: 24)));
         Assert.Equal(Manter, chegou.Claims[Dev]);
     }
 
@@ -119,10 +119,12 @@ public class ConfortoTests
         var r = Rule();
         r.Evaluate(Ctx(At(14), 30, Snap(on: false, ambient: 27)));
         r.Evaluate(Ctx(At(14, 5), 30, Snap(on: false, ambient: 27)));
+        for (var m = 10; m <= 30; m += 5) r.Evaluate(Ctx(At(14, m), 30, Snap(fan: FanSpeed.Turbo, ambient: 26)));
+        Assert.Equal(ConfortoFase.Turbo, r.State.Fase);
 
         r.Evaluate(Ctx(At(14, 36), 30, Snap(fan: FanSpeed.Turbo, ambient: 26)));
         Assert.Equal(ConfortoFase.Manter, r.State.Fase);
-        r.Evaluate(Ctx(At(14, 50), 30, Snap(ambient: 26)));
+        for (var m = 40; m <= 50; m += 5) r.Evaluate(Ctx(At(14, m), 30, Snap(ambient: 26)));
         Assert.Equal(ConfortoFase.Manter, r.State.Fase);
 
         r.Evaluate(Ctx(At(15), 30, Snap(ambient: 24)));
@@ -137,6 +139,8 @@ public class ConfortoTests
         r.Evaluate(Ctx(At(16), 30, Snap(on: false, ambient: 26)));
         r.Evaluate(Ctx(At(16, 2), 30, Snap(on: false, ambient: 26)));
         Assert.Equal(ConfortoFase.Turbo, r.State.Fase);
+        for (var m = 7; m <= 27; m += 5) r.Evaluate(Ctx(At(16, m), 30, Snap(fan: FanSpeed.Turbo, ambient: 26)));
+        Assert.Equal(ConfortoFase.Turbo, r.State.Fase);
         r.Evaluate(Ctx(At(16, 33), 30, Snap(fan: FanSpeed.Turbo, ambient: 26)));
         return r;
     }
@@ -147,7 +151,7 @@ public class ConfortoTests
         var r = TurboSemBaixar();
         Assert.Equal(ConfortoFase.Manter, r.State.Fase);
 
-        var o = r.Evaluate(Ctx(At(17), 30, Snap(ambient: 26)));
+        var o = r.Evaluate(Ctx(At(16, 40), 30, Snap(ambient: 26)));
         Assert.Equal(ConfortoFase.Manter, r.State.Fase);
         Assert.StartsWith("O sensor do aparelho marca 26 °C mesmo após 30 min de turbo", o.Status!.Detail);
     }
@@ -156,10 +160,10 @@ public class ConfortoTests
     public void Sair_e_voltar_ao_pc_nao_libera_outro_turbo()
     {
         var r = TurboSemBaixar();
-        r.Evaluate(Ctx(At(17, 40), 30, Snap(ambient: 26), new PresenceState(true, TimeSpan.FromMinutes(10), Locked: true)));
+        r.Evaluate(Ctx(At(16, 40), 30, Snap(ambient: 26), new PresenceState(true, TimeSpan.FromMinutes(10), Locked: true)));
 
-        r.Evaluate(Ctx(At(17, 45), 30, Snap(ambient: 26)));
-        r.Evaluate(Ctx(At(17, 50), 30, Snap(ambient: 26)));
+        r.Evaluate(Ctx(At(16, 45), 30, Snap(ambient: 26)));
+        r.Evaluate(Ctx(At(16, 50), 30, Snap(ambient: 26)));
 
         Assert.NotEqual(ConfortoFase.Turbo, r.State.Fase);
     }
@@ -169,10 +173,10 @@ public class ConfortoTests
     {
         // Longe do PC, o Ausente (prioridade maior) comanda: o Conforto vê o aparelho bloqueado, não chega a sair.
         var r = TurboSemBaixar();
-        r.Evaluate(Ctx(At(17, 40), 30, Snap(ambient: 26)) with { Blocked = _ => true });
+        r.Evaluate(Ctx(At(16, 40), 30, Snap(ambient: 26)) with { Blocked = _ => true });
 
-        r.Evaluate(Ctx(At(17, 45), 30, Snap(ambient: 26)));
-        r.Evaluate(Ctx(At(17, 50), 30, Snap(ambient: 26)));
+        r.Evaluate(Ctx(At(16, 45), 30, Snap(ambient: 26)));
+        r.Evaluate(Ctx(At(16, 50), 30, Snap(ambient: 26)));
 
         Assert.NotEqual(ConfortoFase.Turbo, r.State.Fase);
         Assert.Equal(26, r.State.SensorParadoEm);
@@ -183,7 +187,7 @@ public class ConfortoTests
     {
         var r = TurboSemBaixar();
 
-        r.Evaluate(Ctx(At(17), 30, Snap(ambient: 25)));
+        r.Evaluate(Ctx(At(16, 40), 30, Snap(ambient: 25)));
 
         Assert.Null(r.State.SensorParadoEm);
     }
@@ -202,13 +206,13 @@ public class ConfortoTests
     public void Dois_graus_acima_da_maxima_volta_ao_frio_em_2_min_e_diz_ate_quando_espera()
     {
         var r = Ventilando();
-        r.Evaluate(Ctx(At(15, 59), 30, Snap(mode: AcMode.FanOnly, ambient: 26)));
+        r.Evaluate(Ctx(At(14, 15), 30, Snap(mode: AcMode.FanOnly, ambient: 26)));
 
-        var esperando = r.Evaluate(Ctx(At(16), 30, Snap(mode: AcMode.FanOnly, ambient: 26)));
+        var esperando = r.Evaluate(Ctx(At(14, 16), 30, Snap(mode: AcMode.FanOnly, ambient: 26)));
         Assert.Equal(ConfortoFase.Ventilar, r.State.Fase);
-        Assert.Equal("Dentro está 26 °C, acima de 24 °C desde 15:59. Se continuar até 16:01, volta a esfriar.", esperando.Status!.Detail);
+        Assert.Equal("Dentro está 26 °C, acima de 24 °C desde 14:15. Se continuar até 14:17, volta a esfriar.", esperando.Status!.Detail);
 
-        var frio = r.Evaluate(Ctx(At(16, 1), 30, Snap(mode: AcMode.FanOnly, ambient: 26)));
+        var frio = r.Evaluate(Ctx(At(14, 17), 30, Snap(mode: AcMode.FanOnly, ambient: 26)));
         Assert.Equal(ConfortoFase.Turbo, r.State.Fase);
         Assert.Contains(new SetMode(AcMode.Cool), frio.Claims[Dev]);
     }
@@ -217,11 +221,11 @@ public class ConfortoTests
     public void Um_grau_acima_da_maxima_ainda_espera_5_min()
     {
         var r = Ventilando();
-        r.Evaluate(Ctx(At(15, 59), 30, Snap(mode: AcMode.FanOnly, ambient: 25)));
+        r.Evaluate(Ctx(At(14, 15), 30, Snap(mode: AcMode.FanOnly, ambient: 25)));
 
-        r.Evaluate(Ctx(At(16, 1), 30, Snap(mode: AcMode.FanOnly, ambient: 25)));
+        r.Evaluate(Ctx(At(14, 17), 30, Snap(mode: AcMode.FanOnly, ambient: 25)));
         Assert.Equal(ConfortoFase.Ventilar, r.State.Fase);
-        r.Evaluate(Ctx(At(16, 4), 30, Snap(mode: AcMode.FanOnly, ambient: 25)));
+        r.Evaluate(Ctx(At(14, 20), 30, Snap(mode: AcMode.FanOnly, ambient: 25)));
         Assert.Equal(ConfortoFase.Manter, r.State.Fase);
     }
 
@@ -236,10 +240,10 @@ public class ConfortoTests
         var ventilar = r.Evaluate(Ctx(At(14, 11), 30, Snap(ambient: 23)));
         Assert.Equal([new Power(true), new SetMode(AcMode.FanOnly), new SetFan(FanSpeed.Low)], ventilar.Claims[Dev]);
 
-        r.Evaluate(Ctx(At(14, 30), 30, Snap(mode: AcMode.FanOnly, ambient: 24)));
+        r.Evaluate(Ctx(At(14, 20), 30, Snap(mode: AcMode.FanOnly, ambient: 24)));
         Assert.Equal(ConfortoFase.Ventilar, r.State.Fase);
-        r.Evaluate(Ctx(At(14, 40), 30, Snap(mode: AcMode.FanOnly, ambient: 25)));
-        var frio = r.Evaluate(Ctx(At(14, 45), 30, Snap(mode: AcMode.FanOnly, ambient: 25)));
+        r.Evaluate(Ctx(At(14, 28), 30, Snap(mode: AcMode.FanOnly, ambient: 25)));
+        var frio = r.Evaluate(Ctx(At(14, 33), 30, Snap(mode: AcMode.FanOnly, ambient: 25)));
         Assert.Equal(Manter, frio.Claims[Dev]);
     }
 
@@ -280,7 +284,7 @@ public class ConfortoTests
         var r = Rule();
         Assert.Empty(r.Evaluate(Ctx(At(14, 20), null, Snap(on: false, ambient: 24), weather: clima)).Claims);
 
-        var o = r.Evaluate(Ctx(At(14, 35), null, Snap(on: false, ambient: 24), weather: clima));
+        var o = r.Evaluate(Ctx(At(14, 30), null, Snap(on: false, ambient: 24), weather: clima));
 
         Assert.Equal(Manter, o.Claims[Dev]);
         Assert.Contains("calor forte", Assert.Single(o.Notifications).Body);
@@ -303,9 +307,11 @@ public class ConfortoTests
     {
         var r = Rule();
 
-        Assert.Single(r.Evaluate(Ctx(At(18), 20, Snap(ambient: 25))).Notifications);
-        Assert.Empty(r.Evaluate(Ctx(At(19), 20, Snap(ambient: 25))).Notifications);
-        Assert.Single(r.Evaluate(Ctx(At(21), 20, Snap(ambient: 25))).Notifications);
+        var avisos = new List<DateTimeOffset>();
+        for (var t = At(18); t <= At(21); t = t.AddMinutes(5))
+            if (r.Evaluate(Ctx(t, 20, Snap(ambient: 25))).Notifications.Count > 0) avisos.Add(t);
+
+        Assert.Equal([At(18), At(21)], avisos);
     }
 
     [Fact]
@@ -415,6 +421,56 @@ public class ConfortoTests
 
         var quente = Rule().Evaluate(Ctx(At(7), 15, Snap(mode: AcMode.Heat, ambient: 21)));
         Assert.True(quente.Observed[Dev].Waiting);
+    }
+
+    [Fact]
+    public void Fase_salva_com_o_ar_desligado_nao_religa_o_ar()
+    {
+        // 16/10 08:42: a fase "manter" de ontem voltou do disco com o ar desligado e dentro a 22 °C.
+        var r = Rule();
+        r.LoadState(System.Text.Json.JsonSerializer.Serialize(new ConfortoState { Fase = ConfortoFase.Manter, UltimaLeitura = At(8, 41, day: 16) }));
+
+        var o = r.Evaluate(Ctx(At(8, 42, day: 16), 20, Snap(on: false, ambient: 22)));
+
+        Assert.Empty(o.Claims);
+        Assert.Equal(ConfortoFase.Parado, r.State.Fase);
+    }
+
+    [Fact]
+    public void Lacuna_sem_leitura_recomeca_e_exige_nova_confirmacao()
+    {
+        var r = Rule();
+        r.Evaluate(Ctx(At(18), 30, Snap(on: false, ambient: 25)));
+        r.Evaluate(Ctx(At(18, 4), 30, Snap(on: false, ambient: 25)));
+
+        var manha = r.Evaluate(Ctx(At(6, day: 15), 30, Snap(on: false, ambient: 25)));
+        Assert.Empty(manha.Claims);
+        Assert.Contains(manha.Traces, t => t.Text.StartsWith("recomeça:"));
+
+        Assert.Equal(Manter, r.Evaluate(Ctx(At(6, 5, day: 15), 30, Snap(on: false, ambient: 25))).Claims[Dev]);
+    }
+
+    [Fact]
+    public void Turbo_que_termina_com_dentro_na_minima_vai_para_o_piso()
+    {
+        var r = Rule();
+        r.Evaluate(Ctx(At(14), 30, Snap(on: false, ambient: 26)));
+        r.Evaluate(Ctx(At(14, 2), 30, Snap(on: false, ambient: 26)));
+        Assert.Equal(ConfortoFase.Turbo, r.State.Fase);
+
+        var o = r.Evaluate(Ctx(At(14, 9), 30, Snap(fan: FanSpeed.Turbo, ambient: 23)));
+
+        Assert.Equal(ConfortoFase.Ventilar, r.State.Fase);
+        Assert.Contains(new SetMode(AcMode.FanOnly), o.Claims[Dev]);
+    }
+
+    [Fact]
+    public void Ja_ventilando_na_faixa_segue_ventilando_ao_assumir()
+    {
+        var o = Rule().Evaluate(Ctx(At(9), 20, Snap(mode: AcMode.FanOnly, ambient: 24)));
+
+        Assert.DoesNotContain(new SetMode(AcMode.Cool), o.Claims[Dev]);
+        Assert.Contains(new SetMode(AcMode.FanOnly), o.Claims[Dev]);
     }
 }
 

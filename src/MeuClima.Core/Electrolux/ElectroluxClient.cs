@@ -72,8 +72,32 @@ public sealed class ElectroluxClient(HttpClient http, ITokenStore store, TimePro
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json"),
         }, ct);
-        var text = await resp.Content.ReadAsStringAsync(ct);
-        return resp.StatusCode switch
+        return Resultado(resp.StatusCode, await resp.Content.ReadAsStringAsync(ct));
+    }
+
+    /// <summary>Envio único no desligamento do PC: só com o access token em cache, sem renovar nem repetir.</summary>
+    /// <remarks>
+    /// Renovar gira o refresh token; se o Windows encerrar o processo antes de gravar o novo, a conta cai.
+    /// Devolve null quando não há token válido para tentar.
+    /// </remarks>
+    public async Task<CommandResult?> SendWithoutRefreshAsync(string deviceId, DeviceCommand command, TimeSpan timeout)
+    {
+        var token = _accessToken;
+        if (token is null || clock.GetUtcNow() >= _accessExpiry || CurrentCredentials is not { } creds) return null;
+        using var cts = new CancellationTokenSource(timeout);
+        using var req = new HttpRequestMessage(HttpMethod.Put, $"{BaseUrl}/appliances/{Uri.EscapeDataString(deviceId)}/command")
+        {
+            Content = new StringContent(ElectroluxMapping.ToCommandBody(command).ToJsonString(), Encoding.UTF8, "application/json"),
+        };
+        req.Headers.Add("x-api-key", creds.ApiKey);
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        using var resp = await http.SendAsync(req, cts.Token);
+        return Resultado(resp.StatusCode, await resp.Content.ReadAsStringAsync(cts.Token));
+    }
+
+    private static CommandResult Resultado(HttpStatusCode status, string text) =>
+        status switch
         {
             HttpStatusCode.OK or HttpStatusCode.NoContent => new CommandResult(CommandOutcome.Applied),
             // 202 com "already in desired state": medido em 14/10/2026 ao reenviar valores vigentes.
@@ -82,9 +106,8 @@ public sealed class ElectroluxClient(HttpClient http, ITokenStore store, TimePro
                 : new CommandResult(CommandOutcome.Applied, text),
             HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity or HttpStatusCode.NotAcceptable
                 => new CommandResult(CommandOutcome.Rejected, text),
-            _ => new CommandResult(CommandOutcome.Failed, $"HTTP {(int)resp.StatusCode}: {text}"),
+            _ => new CommandResult(CommandOutcome.Failed, $"HTTP {(int)status}: {text}"),
         };
-    }
 
     private async Task<JsonNode> GetJsonAsync(string path, CancellationToken ct)
     {

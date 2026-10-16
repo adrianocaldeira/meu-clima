@@ -26,6 +26,11 @@ public sealed record RuleContext(
     IHistoryReader History,
     Func<string, bool>? Blocked = null)
 {
+    public static readonly TimeSpan DefaultMaxReadingAge = TimeSpan.FromMinutes(3);
+
+    /// <summary>Leitura mais velha que isto não gera comando: o aparelho pode ter mudado sem o app ver.</summary>
+    public TimeSpan MaxReadingAge { get; init; } = DefaultMaxReadingAge;
+
     public DateTime LocalNow => TimeZoneInfo.ConvertTime(Now, TimeZone).DateTime;
 
     /// <summary>Aparelho em pausa manual ou já reivindicado por regra de prioridade maior neste ciclo.</summary>
@@ -62,6 +67,15 @@ public sealed class RuleOutput
     public RuleOutput Notify(string title, string body)
     {
         Notifications.Add(new Notification(title, body));
+        return this;
+    }
+
+    /// <summary>Motivo de uma decisão, para o log; não aparece na tela.</summary>
+    public List<(string DeviceId, string Text)> Traces { get; } = [];
+
+    public RuleOutput Trace(string deviceId, string text)
+    {
+        Traces.Add((deviceId, text));
         return this;
     }
 
@@ -131,7 +145,8 @@ public sealed record SaiDoPcConfig(
     int OffAfterMin = 60,
     bool OffOnLock = true,
     int OffOnLockMin = 0,
-    bool RestoreOnReturn = false) : RuleConfig;
+    bool RestoreOnReturn = false,
+    bool OffOnShutdown = true) : RuleConfig;
 
 /// <summary>Formato anterior à v0.2, só para converter settings antigos.</summary>
 public sealed record AntesDoPicoConfig(

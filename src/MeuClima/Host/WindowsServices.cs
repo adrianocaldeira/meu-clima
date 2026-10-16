@@ -87,6 +87,9 @@ public sealed class PresenceMonitor : IDisposable
 
     public event Action? Changed;
 
+    /// <summary>PC entrando em suspensão; o handler roda antes de o Windows suspender, com prazo curto.</summary>
+    public event Action? Suspending;
+
     public PresenceState Current(DateTimeOffset now)
     {
         if ((_lockedAt ?? _suspendedAt) is { } t) return new PresenceState(true, now - t, Locked: true);
@@ -107,15 +110,18 @@ public sealed class PresenceMonitor : IDisposable
             default:
                 return;
         }
+        Log.Write($"Sessão: {e.Reason}");
         Changed?.Invoke();
     }
 
-    /// <summary>Suspensão sem bloqueio conta como bloqueio: o desligamento tenta sair antes de o PC dormir (sem garantia).</summary>
+    /// <summary>Suspensão sem bloqueio conta como bloqueio; o desligamento do ar sai por <see cref="Suspending"/>.</summary>
     private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
     {
         if (e.Mode == PowerModes.Suspend) _suspendedAt ??= DateTimeOffset.UtcNow;
         else if (e.Mode == PowerModes.Resume) _suspendedAt = null;
         else return;
+        Log.Write($"Energia: {e.Mode}");
+        if (e.Mode == PowerModes.Suspend) Suspending?.Invoke();
         Changed?.Invoke();
     }
 

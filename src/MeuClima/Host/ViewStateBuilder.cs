@@ -167,7 +167,8 @@ public static class ViewStateBuilder
         {
             ConfortoConfig x => $"{N(x.DeviceId)} · faixa {x.MinC}–{x.MaxC} °C · frio econômico em {x.MaxC} °C" +
                                 (x.FanAtMin ? $", ventila em {x.MinC} °C" : "") + $", turbo a partir de {x.TurboFromC} °C",
-            SaiDoPcConfig x => $"{N(x.DeviceId)} · {Bloqueio(x)}sem uso {x.EcoAfterMin} min → {x.EcoTargetC} °C, {x.OffAfterMin} min → desliga",
+            SaiDoPcConfig x => $"{N(x.DeviceId)} · {Bloqueio(x)}sem uso {x.EcoAfterMin} min → {x.EcoTargetC} °C, {x.OffAfterMin} min → desliga" +
+                               (x.OffOnShutdown ? "; PC desligado → desliga" : ""),
             JanelaAbertaConfig x => $"{N(x.DeviceId)} · sobe {x.RiseC} °C em {x.WindowMin} min no frio → desliga",
             ModoNoiteConfig x => $"{N(x.DeviceId)} · +{x.StepC} °C a cada {x.StepEveryMin} min, desliga em {x.DurationHours} h" +
                                  (x.DailyStart is { } h ? $" · todo dia às {h:HH\\:mm}" : " · ativação manual"),

@@ -62,6 +62,8 @@ public sealed class ConfortoState
     public DateTimeOffset? UltimoAvisoFora { get; set; }
     /// <summary>Saiu do turbo por ausência ou fim da agenda: ainda falta tirar a ventilação do Turbo.</summary>
     public bool SairDoTurbo { get; set; }
+    /// <summary>Hora da última leitura avaliada; uma lacuna maior que <see cref="ConfortoRule.Lacuna"/> recomeça as fases.</summary>
+    public DateTimeOffset? UltimaLeitura { get; set; }
 }
 
 /// <summary>Mantém dentro entre a mínima e a máxima com o menor gasto: frio econômico, ventilar e turbo só no calor forte.</summary>
@@ -77,6 +79,8 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
     public static readonly TimeSpan ConfirmacaoPiso = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan ConfirmacaoForte = TimeSpan.FromMinutes(2);
     public static readonly TimeSpan AvisoForaCarencia = TimeSpan.FromHours(3);
+    /// <summary>Sem leitura por mais que isto (PC desligado, suspenso, app fechado), nada do que se via antes vale.</summary>
+    public static readonly TimeSpan Lacuna = TimeSpan.FromMinutes(10);
 
     public override string Name => "Conforto";
     public override int Priority => RulePriority.Conforto;
@@ -131,10 +135,22 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
         State.SairDoTurbo = false;
         if (dev.AmbientC is not { } amb) return Reivindicar(o, ctx, dev, null);
 
+        var lacuna = Lacuna > ctx.MaxReadingAge * 2 ? Lacuna : ctx.MaxReadingAge * 2;
+        if (State.UltimaLeitura is not { } ultima || dev.ReadAt - ultima > lacuna)
+        {
+            if (State.Fase != ConfortoFase.Parado || State.AcimaDesde is not null || State.NoPisoDesde is not null)
+                o.Trace(Cfg.DeviceId, State.UltimaLeitura is { } u
+                    ? $"recomeça: {(dev.ReadAt - u).TotalMinutes:0} min sem leitura (fase {State.Fase})"
+                    : $"recomeça: estado sem hora da última leitura (fase {State.Fase})");
+            Reiniciar();
+        }
+        State.UltimaLeitura = dev.ReadAt;
+
         Acompanhar(dev.ReadAt, amb);
         var antes = State.Fase;
         var antecipou = false;
         State.Fase = Proxima(ctx, dev, amb, ref antecipou);
+        if (State.Fase != antes) o.Trace(Cfg.DeviceId, $"fase {antes} → {State.Fase}: dentro {amb} °C, {(dev.On ? "ligado" : "desligado")} em {dev.Mode}");
         if (State.Fase != ConfortoFase.Turbo) (State.TurboDesde, State.TurboInicioC) = (null, null);
         else
         {
@@ -185,7 +201,8 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
         var now = ctx.Now;
         // Exige uma leitura posterior à que começou a contar: uma leitura isolada que fica parada não confirma.
         bool Por(DateTimeOffset? desde, TimeSpan t) => desde is { } d && now - d >= t && dev.ReadAt > d;
-        var fase = State.Fase;
+        // Ligar só pela passagem a partir de Parado: fase de ar ligado com o ar desligado não religa sozinha.
+        var fase = dev.On ? State.Fase : ConfortoFase.Parado;
 
         if (fase == ConfortoFase.Turbo)
         {
@@ -193,12 +210,14 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
             if (amb > Cfg.MaxC && !noTeto) return ConfortoFase.Turbo;
             State.TurboEsgotado = amb > Cfg.MaxC;
             if (noTeto && State.TurboInicioC is { } inicio && amb >= inicio) State.SensorParadoEm = amb;
-            return ConfortoFase.Manter;
+            return amb <= Cfg.MinC ? Piso(amb) : ConfortoFase.Manter;
         }
         if (!State.TurboEsgotado && Por(State.QuenteDesde, EsperaAcima(amb))) return ConfortoFase.Turbo;
         if (Por(State.AcimaDesde, EsperaAcima(amb))) return ConfortoFase.Manter;
         // Aparelho já ligado (por você ou antes do app abrir): assume sem esperar a confirmação.
-        if (fase == ConfortoFase.Parado && dev.On) return amb <= Cfg.MinC ? Piso(amb) : ConfortoFase.Manter;
+        // Já ventilando dentro da faixa, segue ventilando: não liga o compressor sem estar acima da máxima.
+        if (fase == ConfortoFase.Parado && dev.On)
+            return amb <= Cfg.MinC || (amb <= Cfg.MaxC && dev.Mode == AcMode.FanOnly && Cfg.FanAtMin) ? Piso(amb) : ConfortoFase.Manter;
         if (fase == ConfortoFase.Manter && Por(State.NoPisoDesde, ConfirmacaoPiso)) return Piso(amb);
         if (fase is ConfortoFase.Ventilar or ConfortoFase.Parado && Cfg.AllowHeat && Por(State.AbaixoDesde, Confirmacao))
             return ConfortoFase.Aquecer;

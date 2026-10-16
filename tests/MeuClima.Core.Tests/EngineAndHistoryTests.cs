@@ -210,6 +210,72 @@ public class RuleEngineTests
     }
 
     [Fact]
+    public void Leitura_velha_nao_gera_comando()
+    {
+        var engine = new RuleEngine([new ConfortoRule(new ConfortoConfig(Dev))]);
+
+        var r = engine.Evaluate(Ctx(At(14, 10), 31, Snap(ambient: 25), readAt: At(14, 6)));
+
+        Assert.Empty(r.Commands);
+        Assert.Contains(r.Active, a => a.BlockedBy == "sem leitura nova desde 14:06");
+    }
+
+    [Fact]
+    public void Pausa_manual_sobrevive_a_reinicio_do_app()
+    {
+        var antes = new RuleEngine([]);
+        antes.ManualChange(Dev, At(14));
+
+        var depois = new RuleEngine([new ConfortoRule(new ConfortoConfig(Dev))]);
+        depois.LoadPauses(antes.SavePauses());
+
+        Assert.Equal(At(15), depois.PausedUntil(Dev, At(14, 20)));
+        Assert.Empty(depois.Evaluate(Ctx(At(14, 20), 31, Snap(ambient: 25))).Commands);
+    }
+
+    private static RuleEngine ComAusente(SaiDoPcConfig? cfg = null, ModoNoiteRule? noite = null) =>
+        new([new SaiDoPcRule(cfg ?? new SaiDoPcConfig(Dev)), noite ?? new ModoNoiteRule(new ModoNoiteConfig(Dev))]);
+
+    private static readonly TimeSpan Velha = TimeSpan.FromMinutes(3);
+
+    private static Dictionary<string, DeviceSnapshot> Lido(bool on) => new() { [Dev] = Snap(on: on) with { ReadAt = At(22) } };
+
+    [Fact]
+    public void Pc_desligando_desliga_o_ar_ligado_do_ausente()
+    {
+        var d = Assert.Single(ShutdownPlan.Decide(ComAusente(), Lido(on: true), At(22), Velha));
+
+        Assert.True(d.TurnOff);
+    }
+
+    [Fact]
+    public void Pc_desligando_respeita_ajuste_manual_modo_noite_ar_desligado_e_a_opcao()
+    {
+        var pausado = ComAusente();
+        pausado.ManualChange(Dev, At(21, 30));
+        Assert.False(Assert.Single(ShutdownPlan.Decide(pausado, Lido(on: true), At(22), Velha)).TurnOff);
+
+        var noite = new ModoNoiteRule(new ModoNoiteConfig(Dev));
+        noite.Activate(At(21), 24);
+        Assert.False(Assert.Single(ShutdownPlan.Decide(ComAusente(noite: noite), Lido(on: true), At(22), Velha)).TurnOff);
+
+        Assert.False(Assert.Single(ShutdownPlan.Decide(ComAusente(), Lido(on: false), At(22), Velha)).TurnOff);
+        Assert.Empty(ShutdownPlan.Decide(ComAusente(new SaiDoPcConfig(Dev, OffOnShutdown: false)), Lido(on: true), At(22), Velha));
+        Assert.False(Assert.Single(ShutdownPlan.Decide(ComAusente(), Lido(on: true), At(22, 5), Velha)).TurnOff);
+    }
+
+    [Fact]
+    public void Mudanca_vista_depois_de_lacuna_nao_conta_como_ajuste_manual()
+    {
+        // O app desligou o ar ao suspender; na volta, a leitura "desligado" não pode pausar as regras.
+        var engine = new RuleEngine([]);
+
+        Assert.False(engine.ObserveReading(Snap(on: true) with { ReadAt = At(22) }, Snap(on: false) with { ReadAt = At(7, day: 15) }, At(7, day: 15)));
+        Assert.Null(engine.PausedUntil(Dev, At(7, day: 15)));
+        Assert.True(engine.ObserveReading(Snap(on: true) with { ReadAt = At(22) }, Snap(on: false) with { ReadAt = At(22, 1) }, At(22, 1)));
+    }
+
+    [Fact]
     public void Regra_de_olho_aparece_sem_comandar_nem_bloquear()
     {
         var engine = new RuleEngine([new ConfortoRule(new ConfortoConfig(Dev))]);

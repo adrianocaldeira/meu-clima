@@ -19,6 +19,11 @@ public sealed class ClimateService : IDisposable
     private static TimeSpan ConfirmationFor(AppSettings s) =>
         TimeSpan.FromMinutes(Math.Max(RuleEngine.DefaultConfirmationWindow.TotalMinutes, Math.Max(1, s.DeviceIntervalMin) + 1));
 
+    private static TimeSpan MaxReadingAgeFor(AppSettings s) =>
+        TimeSpan.FromMinutes(Math.Max(RuleContext.DefaultMaxReadingAge.TotalMinutes, 2 * Math.Max(1, s.DeviceIntervalMin) + 1));
+
+    private const string PausasKey = "$pausas";
+
     private readonly SettingsStore _settings;
     private readonly ITokenStore _tokens;
     private readonly ElectroluxClient _electrolux;
@@ -39,6 +44,7 @@ public sealed class ClimateService : IDisposable
     private readonly Dictionary<string, SaidaEstagio> _saidaEstagio = [];
     private readonly Dictionary<(string Rule, string Device), string> _logAtivas = [];
     private readonly Dictionary<string, string> _temperaturasLidas = [];
+    private volatile IReadOnlyList<ShutdownDecision> _planoDesligamento = [];
     private WeatherSnapshot? _weatherNow;
     private DateTimeOffset _nextDevicePoll = DateTimeOffset.MinValue;
     private DateTimeOffset _nextWeatherPoll = DateTimeOffset.MinValue;
@@ -73,6 +79,8 @@ public sealed class ClimateService : IDisposable
             Log.Write("Regras Esfriar rápido, Antes do pico e Fora mais fresco convertidas em Conforto.");
         }
         RebuildEngine();
+        if (LoadRuleStates().TryGetValue(PausasKey, out var pausas)) _engine.LoadPauses(pausas);
+        Log.Write($"Início do Meu Clima {VersionLabel}.");
         _lastState = Snapshot();
     }
 
@@ -207,9 +215,14 @@ public sealed class ClimateService : IDisposable
     private async Task EvaluateAsync(DateTimeOffset now, CancellationToken ct)
     {
         _engine.ConfirmationWindow = ConfirmationFor(_settings.Current);
-        var ctx = new RuleContext(now, TimeZoneInfo.Local, _weatherNow, _readings, _presence.Current(now), _history);
+        _engine.MaxObservationGap = MaxReadingAgeFor(_settings.Current);
+        var ctx = new RuleContext(now, TimeZoneInfo.Local, _weatherNow, _readings, _presence.Current(now), _history)
+        {
+            MaxReadingAge = MaxReadingAgeFor(_settings.Current),
+        };
         var result = _engine.Evaluate(ctx);
         _lastResult = result;
+        foreach (var t in result.Traces) Log.Write($"Decisão {t.RuleName} em {NameOf(t.DeviceId)}: {t.Text}");
         LogRegrasAtivas(result);
         TrackSaidaEvents(now);
         SaveRuleState();
@@ -227,6 +240,33 @@ public sealed class ClimateService : IDisposable
             if (resultado == SendResult.Ok) _ruleRetryAt.Remove(chave);
             else _ruleRetryAt[chave] = now + (resultado == SendResult.Rejected ? RuleRetryAfterReject : RuleRetryAfterFailure);
         }
+        AtualizarPlanoDesligamento(now);
+    }
+
+    /// <summary>Chamar só com a trava: pausa, Modo noite e regras mudam o que fazer se o PC desligar agora.</summary>
+    private void AtualizarPlanoDesligamento(DateTimeOffset now) =>
+        _planoDesligamento = ShutdownPlan.Decide(_engine, _readings, now, MaxReadingAgeFor(_settings.Current));
+
+    /// <summary>PC desligando, saindo da sessão ou suspendendo: desliga o ar do Ausente com o plano do último ciclo.</summary>
+    /// <remarks>Fora da trava do ciclo, que pode estar presa numa leitura de 30 s.</remarks>
+    public async Task TurnOffForShutdownAsync(string motivo, TimeSpan prazo)
+    {
+        var plano = _planoDesligamento;
+        Log.Write($"{motivo}: {(plano.Count == 0 ? "nenhum aparelho com o Ausente" : string.Join("; ", plano.Select(d => $"{NameOf(d.DeviceId)} {(d.TurnOff ? "desligar" : "manter")} ({d.Reason})")))}");
+        await Task.WhenAll(plano.Where(d => d.TurnOff).Select(async d =>
+        {
+            try
+            {
+                var r = await _electrolux.SendWithoutRefreshAsync(d.DeviceId, new DeviceCommand.Power(false), prazo);
+                Log.Write(r is null
+                    ? $"{motivo}: {NameOf(d.DeviceId)} não desligado, sem token válido em cache"
+                    : $"{motivo}: {NameOf(d.DeviceId)} desligar → {r.Outcome} {r.Detail}");
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+                Log.Write($"{motivo}: {NameOf(d.DeviceId)} não desligado: {ex.GetType().Name}");
+            }
+        }));
     }
 
     private enum SendResult { Ok, Rejected, Failed, Deferred }
@@ -319,6 +359,7 @@ public sealed class ClimateService : IDisposable
             _engine.ManualChange(deviceId, now);
             Publish();
             await SendAsync(deviceId, plan, UserOrigin, now, CancellationToken.None);
+            AtualizarPlanoDesligamento(_clock.GetUtcNow());
             Publish();
         }
         finally
@@ -334,6 +375,7 @@ public sealed class ClimateService : IDisposable
         try
         {
             action();
+            AtualizarPlanoDesligamento(_clock.GetUtcNow());
             Publish();
         }
         finally { _gate.Release(); }
@@ -524,7 +566,10 @@ public sealed class ClimateService : IDisposable
 
     private void SaveRuleState()
     {
+        // Ajustes de versão mais nova: o motor está vazio e gravaria por cima do estado das regras dela.
+        if (_settings.ReadOnly) return;
         var states = _engine.Rules.ToDictionary(r => r.Config.Id, r => r.SaveState());
+        states[PausasKey] = _engine.SavePauses();
         File.WriteAllText(AppPaths.RuleState, JsonSerializer.Serialize(states));
     }
 

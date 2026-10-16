@@ -6,6 +6,24 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+### Corrigido
+- Desligar, suspender o PC ou sair da sessão deixava o ar ligado. O "Ausente" agora desliga o ar
+  nesse momento, com um único comando. Não desliga com ajuste manual em vigor ou Modo noite ativo, e
+  a opção "Desligar quando o PC desligar ou suspender" permite manter o ar como está.
+- Ao ligar o PC de manhã, o "Conforto" retomava a fase da véspera e religava o ar em Frio com dentro
+  abaixo da faixa. Depois de 10 min sem leitura ele recomeça do zero, e uma fase de ar ligado nunca
+  religa sozinha um ar que está desligado.
+- Ao fim do turbo com dentro já na mínima, o "Conforto" ia para o Frio econômico; agora vai para só
+  ventilar (ou desliga, conforme a regra).
+- Nenhuma regra comanda o aparelho com leitura mais velha que 3 min.
+- A pausa de 1 h por ajuste manual se perdia quando o app reiniciava (atualização, PC desligado).
+- Um `settings.json` gravado por versão mais nova fazia o app recriar as regras padrão e gravar por
+  cima; agora ele abre só para leitura, sem regras, e avisa.
+
+### Mudado
+- O log registra cada mudança de fase do "Conforto" com o motivo, o recomeço depois de uma lacuna,
+  bloqueio e desbloqueio da tela, suspensão e retomada do PC e o que foi feito no desligamento.
+
 ## [0.2.3] — 2026
 
 ### Corrigido

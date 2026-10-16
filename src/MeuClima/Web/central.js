@@ -41,11 +41,12 @@
     },
     'sai-do-pc': {
       name: 'Ausente', desc: 'Tela bloqueada desliga o ar; sem uso do PC, alivia e depois desliga. Na volta, as regras decidem se ele liga de novo.',
-      defaults: { offOnLock: true, offOnLockMin: 0, ecoAfterMin: 20, ecoTargetC: 26, offAfterMin: 60, restoreOnReturn: false },
+      defaults: { offOnLock: true, offOnLockMin: 0, offOnShutdown: true, ecoAfterMin: 20, ecoTargetC: 26, offAfterMin: 60, restoreOnReturn: false },
       sections: [
         { title: 'Tela bloqueada', fields: [{ k: 'deviceId', t: 'device', label: 'Aparelho do cômodo do PC' },
           bool('offOnLock', 'Desligar ao bloquear a tela', 'Vale também quando o PC entra em suspensão.'),
-          num('offOnLockMin', 'Depois de', 'min', 0, 60, 1, '0 = na hora. 3 min evita liga-desliga em pausas curtas.')] },
+          num('offOnLockMin', 'Depois de', 'min', 0, 60, 1, '0 = na hora. 3 min evita liga-desliga em pausas curtas.'),
+          bool('offOnShutdown', 'Desligar quando o PC desligar ou suspender', 'Na hora, antes de o PC apagar. Não desliga com ajuste manual ou modo noite em andamento.')] },
         { title: 'Sem uso do PC', fields: [
           num('ecoAfterMin', 'Aliviar depois de', 'min', 5, 240, 5, 'Sem uso do teclado e mouse, com a tela desbloqueada.'),
           num('ecoTargetC', 'Alvo ao aliviar', '°C', 16, 30, 1, 'Passa para Frio com este alvo.'),

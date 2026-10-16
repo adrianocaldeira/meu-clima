@@ -15,8 +15,9 @@ as suas credenciais. Não tem afiliação, patrocínio nem suporte da Electrolux
 ### As regras funcionam com o PC desligado?
 
 **Não.** As regras rodam no app, no seu PC. PC desligado, hibernado, ou sem ninguém logado no Windows
-= nenhuma regra executa. O ar-condicionado fica no último estado que recebeu. A exceção é o
-**Modo noite**: ele programa o timer do próprio aparelho, que desliga mesmo com o PC desligado.
+= nenhuma regra executa. O ar-condicionado fica no último estado que recebeu. Duas exceções:
+o **Ausente** desliga o ar no momento em que o PC desliga ou suspende, e o **Modo noite** programa o
+timer do próprio aparelho, que desliga mesmo com o PC desligado.
 
 ---
 

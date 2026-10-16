@@ -116,7 +116,7 @@
       { tipo: 'conforto', id: 'r-conforto', enabled: true, deviceId: 'dev-escritorio', minC: 23, maxC: 24, turboFromC: 26, maxTurboMin: 30,
         fanAtMin: true, allowHeat: false, preCoolApparentC: 30, preCoolLeadMin: 30, coolerOutsideC: 3, requirePresence: true,
         schedule: { days: [1, 2, 3, 4, 5], start: '08:00:00', end: '19:00:00' } },
-      { tipo: 'sai-do-pc', id: 'r-saipc', enabled: true, deviceId: 'dev-escritorio', offOnLock: true, offOnLockMin: 0, ecoAfterMin: 20, ecoTargetC: 26, offAfterMin: 60, restoreOnReturn: false },
+      { tipo: 'sai-do-pc', id: 'r-saipc', enabled: true, deviceId: 'dev-escritorio', offOnLock: true, offOnLockMin: 0, offOnShutdown: true, ecoAfterMin: 20, ecoTargetC: 26, offAfterMin: 60, restoreOnReturn: false },
       { tipo: 'janela-aberta', id: 'r-janela', enabled: true, deviceId: 'dev-escritorio', riseC: 2, windowMin: 15, minOnMin: 15, cooldownMin: 60 },
       { tipo: 'janela-aberta', id: 'r-janela-sala', enabled: true, deviceId: 'dev-sala', riseC: 2, windowMin: 15, minOnMin: 15, cooldownMin: 60 },
     ];
@@ -142,7 +142,7 @@
       const dn = devName(c.deviceId);
       switch (c.tipo) {
         case 'conforto': return `${dn} · faixa ${c.minC}–${c.maxC} °C · frio econômico em ${c.maxC} °C${c.fanAtMin ? `, ventila em ${c.minC} °C` : ''}, turbo a partir de ${c.turboFromC} °C`;
-        case 'sai-do-pc': return `${dn} · ${c.offOnLock ? (c.offOnLockMin ? `tela bloqueada ${c.offOnLockMin} min → desliga; ` : 'tela bloqueada → desliga na hora; ') : ''}sem uso ${c.ecoAfterMin} min → ${c.ecoTargetC} °C, ${c.offAfterMin} min → desliga`;
+        case 'sai-do-pc': return `${dn} · ${c.offOnLock ? (c.offOnLockMin ? `tela bloqueada ${c.offOnLockMin} min → desliga; ` : 'tela bloqueada → desliga na hora; ') : ''}sem uso ${c.ecoAfterMin} min → ${c.ecoTargetC} °C, ${c.offAfterMin} min → desliga${c.offOnShutdown ? '; PC desligado → desliga' : ''}`;
         case 'janela-aberta': return `${dn} · dentro sobe ${c.riseC} °C em ${c.windowMin} min no frio → desliga e avisa`;
         case 'modo-noite': return `${dn} · desliga em ${c.durationHours} h, sobe ${c.stepC} °C a cada ${c.stepEveryMin} min até ${c.maxTargetC} °C${c.dailyStart ? ` · todo dia às ${c.dailyStart.slice(0, 5)}` : ''}`;
         default: return '';

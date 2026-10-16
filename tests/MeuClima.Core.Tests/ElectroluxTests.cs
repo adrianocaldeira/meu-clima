@@ -111,6 +111,32 @@ public class ElectroluxClientTests
     }
 
     [Fact]
+    public async Task Desligamento_do_pc_sem_token_em_cache_nao_renova_nem_envia()
+    {
+        var (client, h, store) = Build((_, _) => Token());
+
+        var r = await client.SendWithoutRefreshAsync("ac", new DeviceCommand.Power(false), TimeSpan.FromSeconds(2));
+
+        Assert.Null(r);
+        Assert.Empty(h.Calls);
+        Assert.Equal("rt-velho", store.Current!.RefreshToken);
+    }
+
+    [Fact]
+    public async Task Desligamento_do_pc_usa_o_token_em_cache_num_envio_so()
+    {
+        var (client, h, _) = Build((req, _) => req.RequestUri!.AbsolutePath.EndsWith("/token/refresh")
+            ? Token() : Json(HttpStatusCode.OK, "[]"));
+        await client.ListDevicesAsync();
+        h.Calls.Clear();
+
+        var r = await client.SendWithoutRefreshAsync("ac", new DeviceCommand.Power(false), TimeSpan.FromSeconds(2));
+
+        Assert.Equal(CommandOutcome.Applied, r!.Outcome);
+        Assert.Equal(["PUT /api/v1/appliances/ac/command"], h.Calls);
+    }
+
+    [Fact]
     public async Task Refresh_token_rotacionado_e_salvo_na_hora()
     {
         var (client, _, store) = Build((req, _) => req.RequestUri!.AbsolutePath.EndsWith("/token/refresh")
