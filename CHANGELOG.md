@@ -6,6 +6,15 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+## [0.3.2] — 2026
+
+### Corrigido
+- Com o sensor do aparelho marcando bem acima do cômodo (26 °C no aparelho, 23,3 °C na mesa), o
+  "Conforto" ligava o turbo de novo a cada volta ao PC e a proteção do sensor travado nunca agia. Agora
+  os turbos picados por saídas curtas somam, e o app desiste do turbo depois de 30 min sem a leitura baixar.
+- Voltar ao PC em até 15 min sem uso não reenvia econômico, alvo e turbo: o "Conforto" continua de onde
+  parou, sem os apitos repetidos no aparelho.
+
 ## [0.3.1] — 2026
 
 ### Adicionado
@@ -199,7 +208,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
   portable abre a página da release.
 - Instalador (Inno Setup), sem exigir administrador.
 
-[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.3.1...HEAD
+[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.3.2
 [0.3.1]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.3.1
 [0.3.0]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.3.0
 [0.2.4]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.2.4
