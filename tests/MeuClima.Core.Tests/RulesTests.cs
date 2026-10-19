@@ -225,6 +225,44 @@ public class ConfortoTests
     }
 
     [Fact]
+    public void Leitura_velha_durante_a_saida_curta_nao_perde_a_fase()
+    {
+        var r = TurboComSaidaCurta();
+        r.Evaluate(Ctx(At(16, 9).AddSeconds(30), 30, Snap(ambient: 26), Longe) with { Blocked = _ => true });
+
+        var o = r.Evaluate(Ctx(At(16, 10), 30, Snap(ambient: 26)));
+
+        Assert.Equal(ConfortoFase.Turbo, r.State.Fase);
+        Assert.DoesNotContain(new SetEnergySaving(true), o.Claims[Dev]);
+    }
+
+    [Fact]
+    public void Leituras_durante_o_bloqueio_na_saida_curta_contam_ao_voltar()
+    {
+        var r = Rule();
+        r.Evaluate(Ctx(At(16), 30, Snap(on: false, ambient: 25)));
+        for (var m = 1; m <= 3; m++) r.Evaluate(Ctx(At(16, m), 30, Snap(on: false, ambient: 25), Longe));
+        for (var m = 4; m <= 7; m++) r.Evaluate(Ctx(At(16, m), 30, Snap(on: false, ambient: 23), Longe) with { Blocked = _ => true });
+
+        var o = r.Evaluate(Ctx(At(16, 8), 30, Snap(on: false, ambient: 25)));
+
+        Assert.False(o.Claims.TryGetValue(Dev, out var c) && c.Contains(new Power(true)));
+    }
+
+    [Fact]
+    public void Bloqueio_com_voce_no_pc_continua_recomecando_as_fases()
+    {
+        var r = Rule();
+        r.Evaluate(Ctx(At(16), 30, Snap(on: false, ambient: 26)));
+        r.Evaluate(Ctx(At(16, 2), 30, Snap(on: false, ambient: 26)));
+        Assert.Equal(ConfortoFase.Turbo, r.State.Fase);
+
+        r.Evaluate(Ctx(At(16, 3), 30, Snap(fan: FanSpeed.Turbo, ambient: 26)) with { Blocked = _ => true });
+
+        Assert.Equal(ConfortoFase.Parado, r.State.Fase);
+    }
+
+    [Fact]
     public void Turbo_picado_por_saidas_curtas_tambem_marca_o_sensor_parado()
     {
         var r = TurboComSaidaCurta();

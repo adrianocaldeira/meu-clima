@@ -172,13 +172,21 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
             // Bloqueado, a fase avançaria sem comando (aviso falso, turbo e antecipação gastos à toa).
             // Avalia do zero só para mostrar o que faria, e descarta o estado, os avisos e o rastro
             // (a prévia sempre parte de Parado e logaria a mesma troca de fase a cada ciclo).
+            // Na saída curta do PC, guarda tudo: um ciclo de leitura velha não pode fazer a volta reenviar comandos.
+            var saidaCurta = Cfg.RequirePresence && ctx.Presence.Away && ctx.Presence.AwayFor <= SaidaCurta;
+            var inteiro = saidaCurta ? SaveState() : null;
             var guardado = Recomeco(State);
             Reiniciar();
             var previa = Avaliar(o, ctx, dev);
             previa.Notifications.Clear();
             previa.Observed.Clear();
             previa.Traces.Clear();
-            State = guardado;
+            if (inteiro is null) State = guardado;
+            else
+            {
+                LoadState(inteiro);
+                AcompanharLonge(ctx, dev);
+            }
             return previa;
         }
         return Avaliar(o, ctx, dev);
@@ -265,11 +273,7 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
     {
         var estavaNoTurbo = State.Fase == ConfortoFase.Turbo || State.SairDoTurbo;
         if (motivo == "ninguém no PC" && ctx.Presence.AwayFor <= SaidaCurta)
-        {
-            ContarTurbo(ctx.Now, 0, segue: false);
-            if (dev.AmbientC is { } amb && State.UltimaLeitura != dev.ReadAt) Acompanhar(dev.ReadAt, amb);
-            State.UltimaLeitura = dev.ReadAt;
-        }
+            AcompanharLonge(ctx, dev);
         else Reiniciar();
         State.SairDoTurbo = estavaNoTurbo && dev.On && dev.Fan == FanSpeed.Turbo;
         if (!State.SairDoTurbo)
@@ -281,6 +285,14 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
             ? "Você saiu do PC: tirando a ventilação do turbo."
             : "Fim do horário da regra: tirando a ventilação do turbo.", null);
         return o;
+    }
+
+    /// <summary>Saída curta: fecha o turbo e segue marcando as leituras, sem trocar de fase.</summary>
+    private void AcompanharLonge(RuleContext ctx, DeviceSnapshot dev)
+    {
+        ContarTurbo(ctx.Now, 0, segue: false);
+        if (dev.AmbientC is { } amb && State.UltimaLeitura != dev.ReadAt) Acompanhar(dev.ReadAt, amb);
+        State.UltimaLeitura = dev.ReadAt;
     }
 
     private ConfortoFase Proxima(RuleContext ctx, DeviceSnapshot dev, int amb, ref bool antecipou)
