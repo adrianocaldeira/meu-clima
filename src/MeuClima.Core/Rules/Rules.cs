@@ -81,6 +81,8 @@ public sealed class ConfortoState
     public int? TurboInicioC { get; set; }
     /// <summary>Turbo inteiro sem baixar 1 °C: leitura que o sensor travou. Some quando a leitura muda.</summary>
     public int? SensorParadoEm { get; set; }
+    /// <summary>Leitura no primeiro turbo da janela: turbos picados por ausência contam como um só.</summary>
+    public int? TurboSerieC { get; set; }
     public List<TurboUso> Turbos { get; set; } = [];
     public Marca Acima { get; set; } = new();
     public Marca Quente { get; set; } = new();
@@ -122,6 +124,8 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
     /// <summary>Sem leitura por mais que isto (PC desligado, suspenso, app fechado), nada do que se via antes vale.</summary>
     public static readonly TimeSpan Lacuna = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan JanelaTurbo = TimeSpan.FromHours(2);
+    /// <summary>Tempo sem usar o PC (inclui os 5 min até contar como ausente) em que a fase fica guardada.</summary>
+    public static readonly TimeSpan SaidaCurta = TimeSpan.FromMinutes(15);
     /// <summary>Turbo com menos que isto de saldo não começa: um turbo curto só gastaria o saldo.</summary>
     public static readonly TimeSpan TurboMinimo = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan CicloMinimo = TimeSpan.FromMinutes(5);
@@ -149,6 +153,7 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
         UltimoAvisoFora = s.UltimoAvisoFora,
         TurboEsgotado = s.TurboEsgotado,
         SensorParadoEm = s.SensorParadoEm,
+        TurboSerieC = s.TurboSerieC,
         Turbos = [.. s.Turbos],
     };
 
@@ -183,7 +188,7 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
     {
         var naAgenda = (Cfg.Schedule ?? Schedule.Always).Contains(ctx.LocalNow);
         if (!naAgenda || (Cfg.RequirePresence && ctx.Presence.Away))
-            return Sair(o, dev, naAgenda ? "ninguém no PC" : "fora da agenda");
+            return Sair(o, ctx, dev, naAgenda ? "ninguém no PC" : "fora da agenda");
         State.SairDoTurbo = false;
         if (dev.AmbientC is not { } amb) return Reivindicar(o, ctx, dev, null);
 
@@ -247,15 +252,25 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
             State.SaltoEm = leitura;
         State.UltimaAmb = amb;
         if (State.Acima.Desde is null) (State.SaltoEm, State.ForaAdiaAte) = (null, null);
-        if (amb <= Cfg.MaxC) State.TurboEsgotado = false;
+        if (amb <= Cfg.MaxC) (State.TurboEsgotado, State.TurboSerieC) = (false, null);
         if (State.SensorParadoEm is { } p && p != amb) State.SensorParadoEm = null;
     }
 
     /// <summary>Ausência ou fim da agenda: solta o aparelho, mas não o deixa em turbo sem prazo.</summary>
-    private RuleOutput Sair(RuleOutput o, DeviceSnapshot dev, string motivo)
+    /// <remarks>
+    /// Saída curta guarda a fase e segue acompanhando as leituras: quem volta continua de onde parou, sem refazer
+    /// os comandos (cada um apita no aparelho). Ausência mais longa recomeça a cada ciclo.
+    /// </remarks>
+    private RuleOutput Sair(RuleOutput o, RuleContext ctx, DeviceSnapshot dev, string motivo)
     {
         var estavaNoTurbo = State.Fase == ConfortoFase.Turbo || State.SairDoTurbo;
-        Reiniciar();
+        if (motivo == "ninguém no PC" && ctx.Presence.AwayFor <= SaidaCurta)
+        {
+            ContarTurbo(ctx.Now, 0, segue: false);
+            if (dev.AmbientC is { } amb && State.UltimaLeitura != dev.ReadAt) Acompanhar(dev.ReadAt, amb);
+            State.UltimaLeitura = dev.ReadAt;
+        }
+        else Reiniciar();
         State.SairDoTurbo = estavaNoTurbo && dev.On && dev.Fan == FanSpeed.Turbo;
         if (!State.SairDoTurbo)
             return o.Observe(Cfg.DeviceId, new RuleStatus($"{Name} em espera",
@@ -281,8 +296,7 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
             var noTeto = TurboRestante(now) <= TimeSpan.Zero;
             if (amb > Cfg.MaxC && !noTeto) return ConfortoFase.Turbo;
             State.TurboEsgotado = amb > Cfg.MaxC;
-            var turboCheio = State.TurboDesde is { } t0 && now - t0 >= TimeSpan.FromMinutes(Cfg.MaxTurboMin);
-            if (turboCheio && State.TurboInicioC is { } inicio && amb >= inicio) State.SensorParadoEm = amb;
+            if (noTeto && State.TurboSerieC is { } inicio && amb >= inicio) State.SensorParadoEm = amb;
             return amb <= Cfg.MinC ? Piso(amb) : ConfortoFase.Manter;
         }
         // Aquecendo (só com "Aquecer" ligado): sai para ventilar ou desligar, nunca direto para o frio.
@@ -349,6 +363,7 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
         if (State.TurboDesde is { } aberto && State.Turbos.Count > 0 && State.Turbos[^1].Inicio == aberto)
             State.Turbos[^1] = State.Turbos[^1] with { Fim = now };
         State.Turbos.RemoveAll(u => u.Fim < now - JanelaTurbo);
+        if (State.Turbos.Count == 0) State.TurboSerieC = null;
         if (!segue)
         {
             (State.TurboDesde, State.TurboInicioC) = (null, null);
@@ -356,6 +371,7 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
         }
         if (State.TurboDesde is not null) return;
         (State.TurboDesde, State.TurboInicioC) = (now, amb);
+        State.TurboSerieC ??= amb;
         State.Turbos.Add(new TurboUso(now, now));
     }
 

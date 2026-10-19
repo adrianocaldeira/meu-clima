@@ -70,9 +70,10 @@ opcional; sem ela, vale para qualquer dia e hora. "Só com alguém no PC" pode s
 - **Calor forte** — dentro **≥ 26 °C** por 2 min: Frio com ventilação **Turbo** até voltar a 24 °C,
   por no máximo **30 min a cada 2 h**, somando todos os turbos (sair e voltar ao PC não zera a conta).
   Um turbo novo só começa com pelo menos 10 min de saldo; até lá, Frio econômico. Esgotado o tempo,
-  volta ao Frio econômico e só tenta o turbo de novo depois que dentro chegar à máxima. Se o turbo inteiro passar
-  sem a leitura baixar nem 1 °C, o painel avisa que o sensor do aparelho parece travado (ele fica
-  no aparelho, perto do teto, e com o turbo pode medir o ar frio que volta para ele).
+  volta ao Frio econômico e só tenta o turbo de novo depois que dentro chegar à máxima. Se os 30 min
+  de turbo passarem, mesmo picados, sem a leitura baixar nem 1 °C, o painel avisa que o sensor do aparelho
+  parece travado. Ele fica no aparelho, perto do teto, e pode marcar bem mais que a mesa: num caso
+  real, 26 °C no aparelho com 23,3 °C na mesa.
 - **Na mínima** por 10 min: **só ventila** (compressor desligado, ventilação baixa). Com "Só ventilar"
   desligado, desliga o ar. Volta ao frio quando dentro passar da máxima pelo mesmo tempo; enquanto espera, o painel diz
   desde quando passou e até que horas espera.
@@ -104,7 +105,9 @@ manhãs frias gasta energia sem você pedir. **Aquecer abaixo da mínima** exist
 desligado. Em aparelho sem o modo Quente, a opção fica travada.
 
 **Quando para:** você longe do PC ou fim da agenda. Ao parar, **não desliga** o aparelho (quem desliga
-na ausência é a regra "Ausente"); se estava no turbo, só tira a ventilação do Turbo.
+na ausência é a regra "Ausente"); se estava no turbo, só tira a ventilação do Turbo. Se você voltar
+em até 15 min sem usar o PC (contando os 5 min até o app notar), o Conforto continua de onde parou,
+sem reenviar comandos: cada comando apita no aparelho.
 
 **Atenção:** o sensor do aparelho mede graus inteiros e às vezes salta numa leitura só; por isso
 cada mudança de fase espera alguns minutos de confirmação, com pelo menos uma leitura nova do aparelho.

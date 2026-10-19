@@ -198,6 +198,80 @@ public class ConfortoTests
         Assert.Null(r.State.SensorParadoEm);
     }
 
+    private static readonly PresenceState Longe = new(true, TimeSpan.FromMinutes(5));
+
+    /// <summary>Turbo desde 16:02 e você longe do PC de 16:08 a 16:09.</summary>
+    private static ConfortoRule TurboComSaidaCurta()
+    {
+        var r = Rule();
+        r.Evaluate(Ctx(At(16), 30, Snap(on: false, ambient: 26)));
+        r.Evaluate(Ctx(At(16, 2), 30, Snap(on: false, ambient: 26)));
+        r.Evaluate(Ctx(At(16, 5), 30, Snap(fan: FanSpeed.Turbo, ambient: 26)));
+        Assert.Contains(new SetFan(FanSpeed.Auto), r.Evaluate(Ctx(At(16, 8), 30, Snap(fan: FanSpeed.Turbo, ambient: 26), Longe)).Claims[Dev]);
+        r.Evaluate(Ctx(At(16, 9), 30, Snap(ambient: 26), Longe));
+        return r;
+    }
+
+    [Fact]
+    public void Volta_rapida_ao_pc_retoma_o_turbo_sem_refazer_o_economico()
+    {
+        var r = TurboComSaidaCurta();
+
+        var o = r.Evaluate(Ctx(At(16, 10), 30, Snap(ambient: 26)));
+
+        Assert.Equal(ConfortoFase.Turbo, r.State.Fase);
+        Assert.Contains(new SetFan(FanSpeed.Turbo), o.Claims[Dev]);
+        Assert.DoesNotContain(new SetEnergySaving(true), o.Claims[Dev]);
+    }
+
+    [Fact]
+    public void Turbo_picado_por_saidas_curtas_tambem_marca_o_sensor_parado()
+    {
+        var r = TurboComSaidaCurta();
+        for (var m = 10; m <= 40; m += 5) r.Evaluate(Ctx(At(16, m), 30, Snap(fan: FanSpeed.Turbo, ambient: 26)));
+
+        Assert.Equal(26, r.State.SensorParadoEm);
+        Assert.True(r.State.TurboEsgotado);
+        Assert.NotEqual(ConfortoFase.Turbo, r.State.Fase);
+    }
+
+    [Fact]
+    public void Saida_longa_do_pc_recomeca_as_fases()
+    {
+        var r = TurboComSaidaCurta();
+        for (var m = 12; m <= 24; m += 3) r.Evaluate(Ctx(At(16, m), 30, Snap(ambient: 26), Longe with { AwayFor = TimeSpan.FromMinutes(m - 3) }));
+
+        r.Evaluate(Ctx(At(16, 25), 30, Snap(ambient: 26)));
+
+        Assert.NotEqual(ConfortoFase.Turbo, r.State.Fase);
+    }
+
+    [Fact]
+    public void Calor_que_sobe_durante_a_saida_curta_conta_ao_voltar()
+    {
+        var r = Rule();
+        r.Evaluate(Ctx(At(14), 30, Snap(ambient: 24)));
+        Assert.Equal(ConfortoFase.Manter, r.State.Fase);
+        for (var m = 1; m <= 8; m++) r.Evaluate(Ctx(At(14, m), 30, Snap(ambient: 26), Longe));
+
+        r.Evaluate(Ctx(At(14, 9), 30, Snap(ambient: 26)));
+
+        Assert.Equal(ConfortoFase.Turbo, r.State.Fase);
+    }
+
+    [Fact]
+    public void Leitura_que_caiu_entre_turbos_separados_nao_marca_o_sensor()
+    {
+        var r = Rule();
+        r.Evaluate(Ctx(At(16), 30, Snap(on: false, ambient: 27)));
+        r.Evaluate(Ctx(At(16, 2), 30, Snap(on: false, ambient: 27)));
+        r.Evaluate(Ctx(At(16, 7), 30, Snap(fan: FanSpeed.Turbo, ambient: 27)));
+        for (var m = 8; m <= 26; m += 3) r.Evaluate(Ctx(At(16, m), 30, Snap(ambient: 26), Longe with { AwayFor = TimeSpan.FromMinutes(m - 3) }));
+        for (var m = 27; m <= 70; m += 3) r.Evaluate(Ctx(At(16).AddMinutes(m), 30, Snap(fan: FanSpeed.Turbo, ambient: 26)));
+
+        Assert.Null(r.State.SensorParadoEm);
+    }
+
     private static ConfortoRule Ventilando()
     {
         var r = Rule();

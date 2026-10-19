@@ -32,7 +32,7 @@ public class SimulacaoTests
         var host = new Anfitriao(Regras()) { Recusa = _ => rng.NextDouble() < 0.03 };
         var t = new DateTimeOffset(2026, 10, 20, 0, 0, 0, TimeSpan.FromHours(-3));
         var fim = t + duracao;
-        DateTimeOffset pcVolta = t, longeAte = t, semConexaoAte = t, falhaLeituraAte = t;
+        DateTimeOffset pcVolta = t, longeAte = t, longeDesde = t, semConexaoAte = t, falhaLeituraAte = t;
         var bloqueado = false;
         var reiniciarAoVoltar = false;
         DateTimeOffset? desligaPorFora = null;
@@ -56,7 +56,8 @@ public class SimulacaoTests
             }
 
             var longe = t < longeAte;
-            var presenca = longe ? new PresenceState(true, TimeSpan.FromMinutes(10), bloqueado) : PresenceState.Present;
+            // Como no PresenceMonitor: bloqueado conta desde o bloqueio; ocioso já chega com os 5 min sem uso.
+            var presenca = longe ? new PresenceState(true, t - longeDesde + (bloqueado ? TimeSpan.Zero : TimeSpan.FromMinutes(5)), bloqueado) : PresenceState.Present;
             var leitura = t < falhaLeituraAte ? null : comodo.Ler(t);
             comodo.Aplicar(host.Ciclo(t, presenca, fora, leitura));
 
@@ -74,11 +75,11 @@ public class SimulacaoTests
                 if (host.DesligaAoSair(t) && rng.NextDouble() < 0.9) comodo.Aplicar([new Power(false)]);
                 pcVolta = t.AddMinutes(rng.Next(10, 600));
             }
-            else if (sorteio < 0.005) host.Reiniciar();
+            else if (sorteio < 0.005) host.Reiniciar(semLacuna: true);
             else if (sorteio < 0.009) comodo.Estado = Ajuste(rng, comodo.Estado);
             else if (sorteio < 0.014)
             {
-                longeAte = t.AddMinutes(rng.Next(5, 90));
+                (longeDesde, longeAte) = (t, t.AddMinutes(rng.Next(5, 90)));
                 bloqueado = rng.NextDouble() < 0.5;
             }
             else if (sorteio < 0.016) semConexaoAte = t.AddMinutes(rng.Next(1, 10));

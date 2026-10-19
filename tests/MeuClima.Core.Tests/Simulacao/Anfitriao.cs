@@ -59,14 +59,15 @@ internal sealed class Anfitriao
     };
 
     /// <summary>App fechado e aberto de novo: só o estado gravado em disco e o histórico sobrevivem.</summary>
-    public void Reiniciar()
+    /// <param name="semLacuna">Reabriu na hora: as leituras de antes seguem valendo para as invariantes.</param>
+    public void Reiniciar(bool semLacuna = false)
     {
         Gravar();
         Motor = Montar();
         Leituras.Clear();
         _ultimoEnvio.Clear();
         _esperaRecusa.Clear();
-        _sessao.Clear();
+        if (!semLacuna) _sessao.Clear();
     }
 
     private void Gravar()
