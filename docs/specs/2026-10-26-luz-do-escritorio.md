@@ -64,8 +64,9 @@ específicos de ar-condicionado (modo, alvo, ventilação).
 
 - `devicekey`, appSecret e tokens nunca vão para log, tela ou teste. No log, o deviceid sai mascarado (`1001…35`).
 - Testes usam chave e deviceid inventados; o vetor de cifra é gerado com IV fixo e chave falsa.
-- `settings.json` é lido em modo estrito: uma versão antiga do app que encontrar `luz` abre só leitura.
-  É o comportamento existente para campo novo e vai no CHANGELOG.
+- Uma versão antiga do app que encontrar `luz` no `settings.json` registra no log, ignora o campo e o
+  apaga na próxima gravação (`SettingsStore.CampoDesconhecido`). Voltar de versão exige reconfigurar a luz;
+  vai no CHANGELOG.
 
 ## Fatias
 

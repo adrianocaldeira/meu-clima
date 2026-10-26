@@ -31,7 +31,12 @@ public sealed class Tray : IDisposable
     {
         _autostart = new WinForms.ToolStripMenuItem("Iniciar com o Windows") { CheckOnClick = true };
         _autostart.Click += (_, _) => AutostartChanged?.Invoke(_autostart.Checked);
+        var luz = new WinForms.ToolStripMenuItem("Acender a luz do escritório");
+        luz.Click += (_, _) => LightClicked?.Invoke();
+        var luzSeparador = new WinForms.ToolStripSeparator();
         var menu = new WinForms.ContextMenuStrip();
+        menu.Items.Add(luz);
+        menu.Items.Add(luzSeparador);
         menu.Items.Add("Abrir o painel", null, (_, _) => toggleFlyout());
         menu.Items.Add("Abrir a central", null, (_, _) => openCentral(null));
         menu.Items.Add("Regras", null, (_, _) => openCentral("rules"));
@@ -40,7 +45,19 @@ public sealed class Tray : IDisposable
         menu.Items.Add("Verificar atualizações", null, (_, _) => CheckUpdateClicked?.Invoke());
         menu.Items.Add(new WinForms.ToolStripSeparator());
         menu.Items.Add("Sair do Meu Clima", null, (_, _) => quit());
-        menu.Opening += (_, _) => _autostart.Checked = Autostart.IsEnabled();
+        menu.Opening += (_, _) =>
+        {
+            _autostart.Checked = Autostart.IsEnabled();
+            var (configurada, acesa) = LightState?.Invoke() ?? (false, null);
+            luz.Visible = luzSeparador.Visible = configurada;
+            luz.Enabled = acesa is not null;
+            luz.Text = acesa switch
+            {
+                true => "Apagar a luz do escritório",
+                false => "Acender a luz do escritório",
+                null => "Luz do escritório: procurando na rede…",
+            };
+        };
 
         _icon = new WinForms.NotifyIcon
         {
@@ -55,6 +72,10 @@ public sealed class Tray : IDisposable
 
     public event Action<bool>? AutostartChanged;
     public event Action? CheckUpdateClicked;
+    public event Action? LightClicked;
+
+    /// <summary>Lido ao abrir o menu: o item da luz só aparece configurado e só habilita com estado conhecido.</summary>
+    public Func<(bool Configurada, bool? Acesa)>? LightState { get; set; }
 
     /// <summary>Texto curto ao passar o mouse (limite de 127 caracteres do Windows).</summary>
     public void SetTooltip(string text) => _icon.Text = text.Length > 127 ? text[..127] : text;

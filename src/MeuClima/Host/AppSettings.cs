@@ -18,6 +18,7 @@ public static class AppPaths
     public static string Settings => Path.Combine(Data, "settings.json");
     public static string RuleState => Path.Combine(Data, "rules-state.json");
     public static string Credentials => Path.Combine(Data, "credentials.dat");
+    public static string SwitchKeys => Path.Combine(Data, "ewelink.dat");
     public static string History => Path.Combine(Data, "history.db");
     public static string Log => Path.Combine(Local, "meuclima.log");
     public static string WebView2Data => Path.Combine(Local, "WebView2");
@@ -51,6 +52,18 @@ public sealed record AppSettings
     /// <summary>Quando cada correção mudou: o histórico anterior está em outra escala, inclusive depois de reiniciar.</summary>
     public Dictionary<string, DateTimeOffset> SensorOffsetsDesde { get; init; } = [];
     public List<RuleConfig> Rules { get; init; } = [];
+    public LuzSettings? Luz { get; init; }
+}
+
+/// <summary>Interruptor eWeLink da luz do escritório; <see cref="DeviceId"/> vem das chaves importadas.</summary>
+public sealed record LuzSettings
+{
+    public required string DeviceId { get; init; }
+    public bool ApagarAoBloquear { get; init; } = true;
+    public int EsperaSegundos { get; init; }
+    public bool ApagarAoDesligar { get; init; } = true;
+
+    public Core.Switches.LuzConfig Config => new(ApagarAoBloquear, TimeSpan.FromSeconds(Math.Max(0, EsperaSegundos)), ApagarAoDesligar);
 }
 
 public static class Json

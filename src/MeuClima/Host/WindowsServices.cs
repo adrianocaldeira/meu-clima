@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using MeuClima.Core.Electrolux;
 using MeuClima.Core.Rules;
+using MeuClima.Core.Switches;
 using Microsoft.Win32;
 
 namespace MeuClima.Host;
@@ -46,6 +47,42 @@ public sealed class DpapiTokenStore : ITokenStore
                 f.Flush(flushToDisk: true);
             }
             File.Move(tmp, AppPaths.Credentials, overwrite: true);
+        }
+    }
+}
+
+/// <summary>Chaves dos interruptores eWeLink por deviceid, cifradas com DPAPI como as credenciais da Electrolux.</summary>
+public sealed class DpapiSwitchKeyStore
+{
+    private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("MeuClima.Ewelink.v1");
+    private readonly Lock _lock = new();
+
+    public Dictionary<string, SwitchKey> Load()
+    {
+        lock (_lock)
+        {
+            if (!File.Exists(AppPaths.SwitchKeys)) return [];
+            try
+            {
+                var plain = ProtectedData.Unprotect(File.ReadAllBytes(AppPaths.SwitchKeys), Entropy, DataProtectionScope.CurrentUser);
+                return JsonSerializer.Deserialize<Dictionary<string, SwitchKey>>(plain) ?? [];
+            }
+            catch (Exception ex) when (ex is CryptographicException or JsonException)
+            {
+                Log.Write("ewelink.dat não pôde ser lido (outro usuário ou arquivo corrompido).");
+                return [];
+            }
+        }
+    }
+
+    public void Save(Dictionary<string, SwitchKey> keys)
+    {
+        lock (_lock)
+        {
+            var cipher = ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(keys), Entropy, DataProtectionScope.CurrentUser);
+            var tmp = AppPaths.SwitchKeys + ".tmp";
+            File.WriteAllBytes(tmp, cipher);
+            File.Move(tmp, AppPaths.SwitchKeys, overwrite: true);
         }
     }
 }

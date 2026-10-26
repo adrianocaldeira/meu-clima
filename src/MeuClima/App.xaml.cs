@@ -16,6 +16,7 @@ public partial class App : Application
     private Tray? _tray;
     private PresenceMonitor? _presence;
     private ClimateService? _climate;
+    private SwitchService? _switches;
     private UiBridge? _bridge;
     private FlyoutWindow? _flyout;
     private CentralWindow? _central;
@@ -56,6 +57,8 @@ public partial class App : Application
         ImportCredentials(e.Args);
         WebWindow.WebRoot = WebAssets.Extract();
         var settings = new SettingsStore();
+        var switchKeys = new DpapiSwitchKeyStore();
+        ImportEwelinkKeys(e.Args, settings, switchKeys);
         ApplyInstallerStartupChoice(settings);
 #if !DEBUG
         // Build de desenvolvimento não se registra no logon: o Run apontaria para bin\Debug.
@@ -64,6 +67,7 @@ public partial class App : Application
 
         _presence = new PresenceMonitor();
         _climate = new ClimateService(settings, new DpapiTokenStore(), _presence);
+        _switches = new SwitchService(settings, switchKeys, _presence);
         _presence.Suspending += () => DesligarAntesDeSair("PC suspendendo", TimeSpan.FromSeconds(2));
         SessionEnding += (_, ev) => DesligarAntesDeSair(
             ev.ReasonSessionEnding == ReasonSessionEnding.Shutdown ? "PC desligando" : "Saindo da sessão", TimeSpan.FromSeconds(4));
@@ -71,6 +75,9 @@ public partial class App : Application
         _bridge = new UiBridge(_climate, tab => OpenCentral(tab, daBandeja: true), () => _flyout?.Hide(), Quit);
         _tray = new Tray(ToggleFlyout, OpenCentral, Quit);
         _tray.AutostartChanged += on => _ = _climate.UpdateSettingsAsync(s => s with { StartWithWindows = on });
+        _tray.LightState = () => (_switches.Configurada, _switches.Acesa);
+        _tray.LightClicked += () => _ = _switches.ToggleAsync();
+        _switches.Notify += (title, body) => Dispatcher.InvokeAsync(() => _tray?.Notify(title, body));
 
         _climate.StateChanged += st =>
         {
@@ -96,6 +103,7 @@ public partial class App : Application
         _updates.Start();
 
         _ = Task.Run(() => _climate.RunAsync(_stop.Token));
+        _ = Task.Run(() => _switches.RunAsync(_stop.Token));
 
         if (settings.ReadOnly)
             _tray.Notify("Ajustes de outra versão", "O settings.json foi gravado por uma versão mais nova do Meu Clima. As regras ficam paradas e nada é gravado até você instalar a versão mais nova.");
@@ -111,9 +119,48 @@ public partial class App : Application
     /// <remarks>Task.Run: o handler roda numa thread de janela; esperar a tarefa ali sem ela travaria.</remarks>
     private void DesligarAntesDeSair(string motivo, TimeSpan prazo)
     {
-        if (_climate is not { } clima) return;
-        try { Task.Run(() => clima.TurnOffForShutdownAsync(motivo, prazo)).Wait(prazo + TimeSpan.FromMilliseconds(500)); }
+        var tarefas = new List<Task>();
+        if (_climate is { } clima) tarefas.Add(Task.Run(() => clima.TurnOffForShutdownAsync(motivo, prazo)));
+        if (_switches is { } luz) tarefas.Add(Task.Run(() => luz.TurnOffForShutdownAsync(motivo, prazo)));
+        try { Task.WaitAll([.. tarefas], prazo + TimeSpan.FromMilliseconds(500)); }
         catch (AggregateException ex) { Log.Write($"{motivo}: desligar falhou: {ex.InnerException?.Message}"); }
+    }
+
+    /// <summary>
+    /// <c>--importar-ewelink &lt;keys.json&gt; [--luz &lt;nome&gt;]</c>: chaves no formato <c>{ deviceid: { name, devicekey, uiid } }</c>;
+    /// <c>--luz</c> escolhe, pelo nome no app eWeLink, o interruptor da luz do escritório.
+    /// </summary>
+    private static void ImportEwelinkKeys(string[] args, SettingsStore settings, DpapiSwitchKeyStore store)
+    {
+        var i = Array.FindIndex(args, a => a.Equals("--importar-ewelink", StringComparison.OrdinalIgnoreCase));
+        if (i < 0 || i + 1 >= args.Length) return;
+        try
+        {
+            var lidas = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, Core.Switches.SwitchKey>>(
+                System.IO.File.ReadAllText(args[i + 1]), Json.Options) ?? [];
+            var validas = lidas.Where(k => k.Value.DeviceKey is { Length: > 0 }).ToDictionary();
+            store.Save(validas);
+            Log.Write($"ewelink: {validas.Count} aparelho(s) importado(s).");
+
+            var l = Array.FindIndex(args, a => a.Equals("--luz", StringComparison.OrdinalIgnoreCase));
+            if (l < 0 || l + 1 >= args.Length) return;
+            var alvo = SemAcento(args[l + 1]);
+            var achados = validas.Where(k => SemAcento(k.Value.Name) == alvo).ToList();
+            if (achados is [var (id, chave)])
+            {
+                settings.Update(s => s with { Luz = (s.Luz ?? new LuzSettings { DeviceId = id }) with { DeviceId = id } });
+                Log.Write($"ewelink: luz do escritório = {chave.Name.Trim()}.");
+            }
+            else Log.Write($"ewelink: --luz casou com {achados.Count} aparelho(s); nada configurado.");
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or System.Text.Json.JsonException)
+        {
+            Log.Write($"Importação das chaves eWeLink falhou: {ex.Message}");
+        }
+
+        static string SemAcento(string s) => new string(s.Trim().Normalize(System.Text.NormalizationForm.FormD)
+            .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            .ToArray()).ToUpperInvariant();
     }
 
     /// <summary><c>--importar-credenciais &lt;arquivo.json&gt;</c> com <c>{ "apiKey", "refreshToken" }</c>.</summary>
@@ -193,6 +240,7 @@ public partial class App : Application
         _tray?.Dispose();
         _updates?.Dispose();
         _climate?.Dispose();
+        _switches?.Dispose();
         _presence?.Dispose();
         Shutdown();
     }
