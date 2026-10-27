@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -34,7 +35,9 @@ public sealed class EwelinkLanClient(HttpClient http, TimeProvider? clock = null
         cts.CancelAfter(timeout);
         try
         {
-            using var resp = await http.PostAsJsonAsync($"http://{ip}:8081/zeroconf/{caminho}", corpo, cts.Token);
+            // StringContent leva Content-Length; o JsonContent sai chunked e o aparelho fica mudo (medido em 27/10/2026).
+            using var conteudo = new StringContent(corpo.ToJsonString(), Encoding.UTF8, "application/json");
+            using var resp = await http.PostAsync($"http://{ip}:8081/zeroconf/{caminho}", conteudo, cts.Token);
             var json = await resp.Content.ReadFromJsonAsync<JsonObject>(cts.Token);
             var erro = (int?)json?["error"];
             return erro == 0 ? new SwitchResult(true, 0) : new SwitchResult(false, erro ?? (int)resp.StatusCode, $"HTTP {(int)resp.StatusCode}");

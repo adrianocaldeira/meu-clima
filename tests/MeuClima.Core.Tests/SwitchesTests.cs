@@ -198,10 +198,15 @@ public class EwelinkLanClientTests
     {
         public HttpRequestMessage? Request;
         public string? Body;
+        public long? ContentLength;
+        public bool? Chunked;
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             Request = request;
+            // Lido antes do corpo: ler bufferiza e passa a calcular o tamanho, escondendo o envio chunked.
+            ContentLength = request.Content?.Headers.ContentLength;
+            Chunked = request.Headers.TransferEncodingChunked;
             Body = request.Content is null ? null : await request.Content.ReadAsStringAsync(ct);
             return await responder(request, ct);
         }
@@ -228,6 +233,18 @@ public class EwelinkLanClientTests
         Assert.True((bool)corpo["encrypt"]!);
         Assert.False(string.IsNullOrEmpty((string)corpo["sequence"]!));
         Assert.Equal(esperado, EwelinkCrypto.Decrypt((string)corpo["data"]!, (string)corpo["iv"]!, "chave-falsa"));
+    }
+
+    [Fact]
+    public async Task Corpo_vai_com_Content_Length_porque_o_aparelho_ignora_chunked()
+    {
+        var h = new Handler((_, _) => Task.FromResult(Json("""{"seq":1,"error":0}""")));
+        var c = new EwelinkLanClient(new HttpClient(h));
+
+        await c.SetSwitchAsync("192.168.0.42", "1000abcdef", "chave-falsa", false, true, TimeSpan.FromSeconds(2));
+
+        Assert.NotEqual(true, h.Chunked);
+        Assert.Equal(Encoding.UTF8.GetByteCount(h.Body!), h.ContentLength);
     }
 
     [Fact]
