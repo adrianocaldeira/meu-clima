@@ -259,6 +259,16 @@ public class EwelinkLanClientTests
     }
 
     [Fact]
+    public async Task Resposta_fora_do_protocolo_vira_resultado_sem_excecao()
+    {
+        var c = new EwelinkLanClient(new HttpClient(new Handler((_, _) => Task.FromResult(Json("""{"error":"x"}""")))));
+
+        var r = await c.SetSwitchAsync("192.168.0.42", "1000abcdef", "chave-falsa", false, true, TimeSpan.FromSeconds(2));
+
+        Assert.False(r.Ok);
+    }
+
+    [Fact]
     public async Task Timeout_vira_resultado_sem_excecao()
     {
         var c = new EwelinkLanClient(new HttpClient(new Handler(async (_, ct) =>

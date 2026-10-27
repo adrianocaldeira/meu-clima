@@ -142,6 +142,7 @@ public sealed class SwitchService : IDisposable
             if (a.Falha is AnnouncementFailure.ChaveNaoDecifra && !_avisouChave)
             {
                 _avisouChave = true;
+                Log.Write($"Luz {NomeDa(a.DeviceId)}: a chave não decifra mais; sincronize os aparelhos eWeLink.");
                 Notify?.Invoke("Luz do escritório", "A chave da luz não decifra mais. Sincronize os aparelhos eWeLink.");
             }
         }

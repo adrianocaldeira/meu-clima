@@ -46,7 +46,7 @@ public sealed class EwelinkLanClient(HttpClient http, TimeProvider? clock = null
         {
             return new SwitchResult(false, Detail: "sem resposta no prazo");
         }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException)
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidOperationException)
         {
             return new SwitchResult(false, Detail: ex.GetType().Name);
         }
