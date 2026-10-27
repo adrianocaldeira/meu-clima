@@ -66,10 +66,12 @@ public sealed class SwitchService : IDisposable
             {
                 await EscutarAsync(ct);
             }
-            catch (SocketException ex)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+            catch (Exception ex)
             {
-                Log.Write($"Luz: mDNS indisponível ({ex.SocketErrorCode}); tento de novo em 1 min.");
-                await Task.Delay(TimeSpan.FromMinutes(1), ct).ContinueWith(_ => { }, CancellationToken.None);
+                // Qualquer falha reabre o socket: o laço parado deixaria a luz acesa no bloqueio sem rastro no log.
+                Log.Write($"Luz: escuta mDNS caiu ({ex.GetType().Name}: {(ex as SocketException)?.SocketErrorCode.ToString() ?? ex.Message}); recomeço em 30 s.");
+                await Task.Delay(IntervaloConsulta, ct).ContinueWith(_ => { }, CancellationToken.None);
             }
         }
     }
@@ -89,6 +91,8 @@ public sealed class SwitchService : IDisposable
         {
             if (_clock.GetUtcNow() >= proximaConsulta && Configurada)
             {
+                // Rede que sobe depois do logon (Wi-Fi) ou placa nova: refaz o socket com a lista atual.
+                if (!InterfacesLocais().ToHashSet().SetEquals(locais)) return;
                 // Sem fixar a interface, com VPN ligada a consulta sai pelo túnel e nada responde (medido em 26/10/2026).
                 foreach (var ip in locais)
                 {
@@ -190,10 +194,10 @@ public sealed class SwitchService : IDisposable
             _policy.RegistrarComando(on, _clock.GetUtcNow());
         }
         var r = await _lan.SetSwitchAsync(a.Ip, a.DeviceId, key.DeviceKey, a.Multicanal, on, prazo, ct);
-        Log.Write($"Luz {key.Name}: {(on ? "acender" : "apagar")} ({origem}) → {(r.Ok ? "ok" : $"falhou {r.Error?.ToString() ?? ""} {r.Detail}".TrimEnd())}");
+        Log.Write($"Luz {NomeDa(a.DeviceId)}: {(on ? "acender" : "apagar")} ({origem}) → {(r.Ok ? "ok" : $"falhou {r.Error?.ToString() ?? ""} {r.Detail}".TrimEnd())}");
     }
 
-    private string NomeDa(string deviceId) => _keys.GetValueOrDefault(deviceId)?.Name.Trim() ?? deviceId[..4] + "…";
+    private string NomeDa(string deviceId) => _keys.GetValueOrDefault(deviceId)?.Name?.Trim() is { Length: > 0 } nome ? nome : deviceId[..Math.Min(4, deviceId.Length)] + "…";
 
     private static string Descrever(EwelinkAnnouncement a) => a.Falha is { } f ? f.ToString() : a.On switch
     {

@@ -149,16 +149,17 @@ public partial class App : Application
             if (achados is [var (id, chave)])
             {
                 settings.Update(s => s with { Luz = (s.Luz ?? new LuzSettings { DeviceId = id }) with { DeviceId = id } });
-                Log.Write($"ewelink: luz do escritório = {chave.Name.Trim()}.");
+                Log.Write($"ewelink: luz do escritório = {chave.Name?.Trim()}.");
             }
             else Log.Write($"ewelink: --luz casou com {achados.Count} aparelho(s); nada configurado.");
         }
-        catch (Exception ex) when (ex is System.IO.IOException or System.Text.Json.JsonException)
+        // Só o tipo: a mensagem da JsonException traz o caminho, que tem o deviceid completo.
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
-            Log.Write($"Importação das chaves eWeLink falhou: {ex.Message}");
+            Log.Write($"Importação das chaves eWeLink falhou: {ex.GetType().Name}");
         }
 
-        static string SemAcento(string s) => new string(s.Trim().Normalize(System.Text.NormalizationForm.FormD)
+        static string SemAcento(string? s) => new string((s ?? "").Trim().Normalize(System.Text.NormalizationForm.FormD)
             .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
             .ToArray()).ToUpperInvariant();
     }

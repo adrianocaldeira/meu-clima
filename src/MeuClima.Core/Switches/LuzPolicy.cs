@@ -26,9 +26,11 @@ public sealed class LuzPolicy
     {
         var antes = Ultimo;
         Ultimo = a;
-        if (antes is null || a.Seq == antes.Seq || a.On != true || antes.On == true || _bloqueadoDesde is null) return;
+        if (antes is null || a.Seq == antes.Seq || a.On != true || _bloqueadoDesde is null) return;
+        // Acesa depois do nosso "apagar" também é transição, mesmo se o anúncio de apagada se perdeu (UDP).
+        var acendeu = antes.On != true || _ultimoComando is { On: false } apagar && a.VistoEm - apagar.Em > EcoDoComando;
         var nosso = _ultimoComando is { On: true } c && a.VistoEm - c.Em <= EcoDoComando;
-        if (!nosso) _acesaPorOutroNoBloqueio = true;
+        if (acendeu && !nosso) _acesaPorOutroNoBloqueio = true;
     }
 
     public void RegistrarComando(bool on, DateTimeOffset em) => _ultimoComando = (on, em);
@@ -62,7 +64,9 @@ public sealed class LuzPolicy
         if (a.On is null) return new(false, "estado da luz ilegível");
         if (a.On == false) return new(false, "já apagada");
         if (_acesaPorOutroNoBloqueio) return new(false, "acesa no interruptor com o PC bloqueado");
-        if (_ultimoComando is { On: false } c && agora - c.Em < SemRepetir) return new(false, "comando de apagar já enviado");
+        // Só segura enquanto nenhum anúncio chegou depois do comando: um "acesa" mais novo é outra situação.
+        if (_ultimoComando is { On: false } c && a.VistoEm <= c.Em && agora - c.Em < SemRepetir)
+            return new(false, "comando de apagar já enviado");
         return null;
     }
 }

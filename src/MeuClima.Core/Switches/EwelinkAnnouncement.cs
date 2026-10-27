@@ -20,31 +20,38 @@ public sealed record EwelinkAnnouncement(
         if (txt.GetValueOrDefault("encrypt") == "true")
         {
             if (keyFor(id) is not { } key) return new(id, ip, seq, null, false, now, AnnouncementFailure.SemChave);
+            // ArgumentException: IV com tamanho diferente de 16 bytes.
             try { json = EwelinkCrypto.Decrypt(raw, txt.GetValueOrDefault("iv") ?? "", key); }
-            catch (Exception ex) when (ex is CryptographicException or FormatException)
+            catch (Exception ex) when (ex is CryptographicException or FormatException or ArgumentException)
             {
                 return new(id, ip, seq, null, false, now, AnnouncementFailure.ChaveNaoDecifra);
             }
         }
         else json = raw;
 
+        var (on, multicanal) = LerEstado(json);
+        return new(id, ip, seq, on, multicanal, now, on is null ? AnnouncementFailure.EstadoIlegivel : null);
+    }
+
+    /// <summary>O pacote vem de qualquer host da rede: tipo inesperado vira "ilegível", nunca exceção.</summary>
+    private static (bool? On, bool Multicanal) LerEstado(string json)
+    {
         try
         {
-            var state = JsonNode.Parse(json);
-            if (state?["switches"] is JsonArray canais)
-                return new(id, ip, seq, Ligado(canais.FirstOrDefault(c => (int?)c?["outlet"] == 0)?["switch"]), true, now);
-            return new(id, ip, seq, Ligado(state?["switch"]), false, now);
+            if (JsonNode.Parse(json) is not JsonObject state) return (null, false);
+            if (state["switches"] is JsonArray canais)
+            {
+                var canal0 = canais.OfType<JsonObject>().FirstOrDefault(c => c["outlet"] is JsonValue v && v.TryGetValue<int>(out var n) && n == 0);
+                return (Ligado(canal0?["switch"]), true);
+            }
+            return (Ligado(state["switch"]), false);
         }
         catch (JsonException)
         {
-            return new(id, ip, seq, null, false, now, AnnouncementFailure.EstadoIlegivel);
+            return (null, false);
         }
     }
 
-    private static bool? Ligado(JsonNode? valor) => (string?)valor switch
-    {
-        "on" => true,
-        "off" => false,
-        _ => null,
-    };
+    private static bool? Ligado(JsonNode? valor) =>
+        valor is JsonValue v && v.TryGetValue<string>(out var s) ? s switch { "on" => true, "off" => false, _ => null } : null;
 }

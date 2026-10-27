@@ -156,6 +156,35 @@ public class EwelinkAnnouncementTests
         Assert.True(a.Multicanal);
     }
 
+    [Theory]
+    [InlineData("""{"switch":1}""")]
+    [InlineData("""[1,2]""")]
+    [InlineData("""{"switches":[{"switch":"on","outlet":"zero"}]}""")]
+    [InlineData("""{"switches":"on"}""")]
+    [InlineData("nao-e-json")]
+    public void Estado_com_tipo_inesperado_vira_falha_sem_excecao(string data)
+    {
+        var txt = new Dictionary<string, string> { ["id"] = "1000abcdef", ["type"] = "plug", ["encrypt"] = "false", ["data1"] = data };
+
+        var a = EwelinkAnnouncement.From(txt, "192.168.0.42", Agora, _ => null)!;
+
+        Assert.Null(a.On);
+        Assert.Equal(AnnouncementFailure.EstadoIlegivel, a.Falha);
+    }
+
+    [Theory]
+    [InlineData("MTIz")]
+    [InlineData("%%%")]
+    [InlineData("")]
+    public void IV_invalido_vira_falha_sem_excecao(string iv)
+    {
+        var txt = new Dictionary<string, string>(Txt()) { ["iv"] = iv };
+
+        var a = EwelinkAnnouncement.From(txt, "192.168.0.42", Agora, _ => Chave)!;
+
+        Assert.Equal(AnnouncementFailure.ChaveNaoDecifra, a.Falha);
+    }
+
     [Fact]
     public void TXT_que_nao_e_ewelink_e_ignorado()
     {
@@ -402,6 +431,31 @@ public class LuzPolicyTests
     public void PC_em_uso_nao_apaga()
     {
         Assert.False(Acesa().DecidirBloqueio(Padrao, T0).Apagar);
+    }
+
+    [Fact]
+    public void Apagar_pelo_menu_nao_trava_o_apagar_no_desligamento_se_acenderam_depois()
+    {
+        var p = Acesa();
+        p.RegistrarComando(on: false, T0.AddSeconds(1));
+        p.Registrar(Anuncio(false, T0.AddSeconds(2), seq: 2));
+        p.Registrar(Anuncio(true, T0.AddSeconds(20), seq: 3));
+
+        Assert.True(p.DecidirDesligamento(Padrao, T0.AddSeconds(30)).Apagar);
+    }
+
+    [Fact]
+    public void CA5_reconhece_a_parede_mesmo_sem_ver_o_anuncio_de_apagada()
+    {
+        var p = Acesa();
+        p.Bloqueou(T0);
+        p.RegistrarComando(on: false, T0.AddSeconds(1));
+        p.Registrar(Anuncio(true, T0.AddMinutes(5), seq: 3));
+
+        var d = p.DecidirBloqueio(Padrao, T0.AddMinutes(6));
+
+        Assert.False(d.Apagar);
+        Assert.Contains("interruptor", d.Motivo);
     }
 
     [Fact]
