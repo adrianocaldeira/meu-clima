@@ -6,6 +6,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+## [0.4.0] — 2026
+
 ### Adicionado
 - Luz do escritório (interruptor Sonoff com eWeLink, pela rede local, sem nuvem): acender e apagar pelo
   menu da bandeja. Ela apaga sozinha quando você bloqueia, suspende ou desliga o PC. Se alguém acender a
@@ -224,7 +226,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
   portable abre a página da release.
 - Instalador (Inno Setup), sem exigir administrador.
 
-[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.3.3...HEAD
+[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.4.0
 [0.3.3]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.3.3
 [0.3.2]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.3.2
 [0.3.1]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.3.1

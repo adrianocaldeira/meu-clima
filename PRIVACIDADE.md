@@ -19,6 +19,11 @@ não mostra anúncios e não envia nada para o autor do app.
    Ajustes > "Procurar atualizações automaticamente"; aí a consulta só acontece quando
    você pedir. O instalador novo só é baixado quando você manda instalar.
 
+4. Interruptor Sonoff da luz do escritório (só se você configurar)
+   Pela rede local, sem passar pela internet: o app ouve os anúncios do interruptor
+   (mDNS, porta 5353) e manda acender ou apagar na porta 8081 dele. A chave do interruptor
+   fica criptografada com DPAPI em %AppData%\MeuClima\ewelink.dat.
+
 Nada além disso: as telas e as fontes vêm de dentro do próprio app.
 
 Toda requisição leva o endereço IP do seu computador, como qualquer acesso à internet,

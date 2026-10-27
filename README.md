@@ -139,7 +139,7 @@ Detalhes na [Wiki/Arquitetura](https://github.com/adrianocaldeira/meu-clima/wiki
 
 ## 🗺️ Roadmap
 
-### ✅ Já entregue (v0.3.0)
+### ✅ Já entregue (v0.4.0)
 - Controle do ar-condicionado Electrolux pela bandeja, para todos os aparelhos da conta
 - Clima externo e previsão do dia via Open-Meteo
 - 4 regras automáticas: Conforto, Ausente, Janela aberta e Modo noite; as da v0.1 migram sozinhas
@@ -153,6 +153,8 @@ Detalhes na [Wiki/Arquitetura](https://github.com/adrianocaldeira/meu-clima/wiki
 - Correção da leitura de temperatura por aparelho (-3 a +3 °C)
 - Conforto mais estável: tolera leitura isolada fora da curva, protege o compressor (5 min entre
   ligar e desligar) e limita o turbo a 30 min a cada 2 h
+- Luz do escritório (interruptor Sonoff com eWeLink) pela rede local: acender e apagar na bandeja e
+  apagar sozinha ao bloquear, suspender ou desligar o PC. Configuração ainda por linha de comando
 
 Sugestões? [Crie uma issue](https://github.com/adrianocaldeira/meu-clima/issues/new/choose).
 
@@ -168,7 +170,7 @@ Reportar vulnerabilidade: ver [SECURITY.md](SECURITY.md).
 
 O Meu Clima não coleta dados de uso. Ele só fala com a Electrolux (sua conta), com o Open-Meteo
 (coordenadas da cidade que você escolheu) e com o GitHub (procurar versão nova, desligável em
-**Ajustes**). Telas e fontes vêm de dentro do app. Detalhes em [PRIVACIDADE.md](PRIVACIDADE.md).
+**Ajustes**). Com a luz do escritório configurada, fala também com o interruptor, só pela rede local. Telas e fontes vêm de dentro do app. Detalhes em [PRIVACIDADE.md](PRIVACIDADE.md).
 
 ## 🔏 Assinatura e integridade
 
