@@ -6,6 +6,16 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+### Adicionado
+- Luz do escritório (interruptor Sonoff com eWeLink, pela rede local, sem nuvem): acender e apagar pelo
+  menu da bandeja. Ela apaga sozinha quando você bloqueia, suspende ou desliga o PC. Se alguém acender a
+  luz no interruptor com o PC bloqueado, o app não apaga de novo. Por enquanto, a configuração é por linha de
+  comando (`--importar-ewelink <keys.json> --luz <nome>`); a tela de configuração vem na próxima etapa.
+
+### Compatibilidade
+- A luz é gravada no campo `luz` do `settings.json`. Uma versão anterior ignora esse campo e o apaga na
+  próxima vez que salvar as configurações; depois de voltar de versão, importe a luz de novo.
+
 ## [0.3.3] — 2026
 
 ### Corrigido
