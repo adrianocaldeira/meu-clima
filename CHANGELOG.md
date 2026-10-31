@@ -6,10 +6,14 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+## [0.4.1] — 2026
+
 ### Alterado
 - Ligar o ar pelo controle, sem mudar modo nem temperatura, não pausa mais as regras: elas assumem na hora.
   Se o ar tinha sido desligado pelo controle, religar também solta a pausa desse desligar. Mudar
   temperatura, modo ou ventilação pelo controle continua pausando as regras por 1 hora.
+- Por isso, se você ligou o ar só pelo controle, o "Ausente" volta a desligá-lo quando você bloqueia, suspende
+  ou desliga o PC.
 
 ### Compatibilidade
 - As pausas passam a ser gravadas num formato novo. Uma versão anterior não lê esse formato: se você
@@ -235,7 +239,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
   portable abre a página da release.
 - Instalador (Inno Setup), sem exigir administrador.
 
-[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.4.0...HEAD
+[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.4.1
 [0.4.0]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.4.0
 [0.3.3]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.3.3
 [0.3.2]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.3.2

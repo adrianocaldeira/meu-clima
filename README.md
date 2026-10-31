@@ -66,7 +66,7 @@ com a API da Electrolux e com o Open-Meteo.
 
 No painel da bandeja, cada aparelho mostra numa frase quem está no comando e por quê: você, uma regra
 agindo, uma regra de olho ou em espera. Mexeu à mão (no app, no controle ou no celular)? As automações
-daquele aparelho pausam por 60 min; "Retomar agora" encerra a pausa. O menu **⋯** do painel pausa todas
+daquele aparelho pausam por 60 min; ligar pelo controle sem mudar mais nada não pausa. "Retomar agora" encerra a pausa. O menu **⋯** do painel pausa todas
 as regras por 1 h, verifica atualizações e encerra o app.
 Detalhes e limites de cada uma na [Wiki → Regras](https://github.com/adrianocaldeira/meu-clima/wiki/Regras).
 

@@ -32,7 +32,9 @@ Os valores abaixo são os **padrões**; os ajustáveis aparecem na configuraçã
   prioridade: **Janela aberta > Modo noite > Ausente > Conforto**.
 - **Seu ajuste manda** — mudou algo à mão, as automações daquele aparelho **pausam por 60 minutos**.
   Conta como manual: mudança pelo painel do Meu Clima, ou mudança no aparelho que o Meu Clima não
-  comandou (controle remoto, app do celular). No painel, **Mais ajustes** → **Pausar 1 h** pausa um
+  comandou (controle remoto, app do celular). Ligar pelo controle ou pelo celular sem mudar modo nem
+  temperatura não pausa: as regras assumem na hora. Religar depois de desligar pelo controle também
+  solta a pausa desse desligar. No painel, **Mais ajustes** → **Pausar 1 h** pausa um
   aparelho por conta própria, e o menu **⋯** → **Pausar as regras por 1 h** pausa todos. Na linha
   "Você" do aparelho, **Retomar agora** encerra a pausa antes da hora. O ajuste manual também zera o que o
   Conforto e a Janela aberta estavam fazendo: ao fim da pausa, recomeçam do zero. A pausa continua
@@ -89,7 +91,7 @@ opcional; sem ela, vale para qualquer dia e hora. "Só com alguém no PC" pode s
 - **Compressor:** entre ligar e desligar o compressor (Frio ou Quente de um lado; desligado ou só
   ventilando do outro), o Conforto espera pelo menos **5 min**. O painel diz até que horas. Seu ajuste
   não espera.
-- Com o aparelho já ligado (antes de o app abrir, ou por você depois de terminada a pausa de 60 min),
+- Com o aparelho já ligado (antes de o app abrir, pelo controle ou pelo celular, ou pelo painel depois de terminada a pausa de 60 min),
   assume na hora, sem esperar os 5 min.
   Exceção: se você ligou em **Quente** e "Aquecer abaixo da mínima" está desligado, o Conforto não mexe.
 - **Aquecendo:** quando dentro passa da mínima por 5 min, só ventila (ou desliga, com "Só ventilar"
@@ -127,8 +129,8 @@ acima de 26 °C. O clima de fora vem do Open-Meteo para a sua região, não da s
 - **Tela bloqueada:** desliga **na hora**. Dá para esperar alguns minutos antes (útil para pausas
   curtas) ou desligar essa opção.
 - **PC desligando, suspendendo ou saindo da sessão:** desliga o ar na hora, antes de o PC apagar.
-  Não desliga se há ajuste manual em vigor (você ligou de propósito) ou Modo noite ativo (o timer do
-  aparelho cuida). A opção "Desligar quando o PC desligar ou suspender" vem ligada; desligada, o ar
+  Não desliga durante a pausa por ajuste manual ou com o Modo noite ativo (o timer do
+  aparelho cuida). Ligar só pelo controle não cria pausa: nesse caso o ar desliga. A opção "Desligar quando o PC desligar ou suspender" vem ligada; desligada, o ar
   fica como está.
 - **Sem uso do PC**, com a tela desbloqueada: com **20 min**, passa para Frio 26 °C (alívio); com
   **60 min**, desliga. Se estava no Turbo, o alívio também volta a ventilação para Auto. Se o ar estava
