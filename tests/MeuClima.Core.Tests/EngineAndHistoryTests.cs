@@ -61,9 +61,168 @@ public class RuleEngineTests
         engine.Evaluate(Ctx(At(14, 25), 31, Snap(ambient: 25), history: JanelaAbertaHistorico()));
         Assert.NotNull(janela.State.DisparouEm);
 
-        Assert.True(engine.ObserveReading(Snap(on: false), Snap(on: true), At(14, 30)));
+        Assert.True(engine.ObserveReading(Snap(target: 24), Snap(target: 22), At(14, 30)));
 
         Assert.Null(janela.State.DisparouEm);
+    }
+
+    [Fact]
+    public void Ligar_no_controle_avisa_as_regras_sem_pausar()
+    {
+        var janela = new JanelaAbertaRule(new JanelaAbertaConfig(Dev));
+        var engine = new RuleEngine([janela]);
+        engine.Evaluate(Ctx(At(14, 25), 31, Snap(ambient: 25), history: JanelaAbertaHistorico()));
+
+        Assert.False(engine.ObserveReading(Snap(on: false), Snap(on: true), At(14, 30)));
+
+        Assert.Null(engine.PausedUntil(Dev, At(14, 31)));
+        Assert.Null(janela.State.DisparouEm);
+    }
+
+    [Fact]
+    public void Ligar_no_controle_com_outro_alvo_pausa()
+    {
+        var engine = new RuleEngine([]);
+
+        Assert.True(engine.ObserveReading(Snap(on: false, target: 24), Snap(on: true, target: 22), At(14)));
+        Assert.NotNull(engine.PausedUntil(Dev, At(14, 30)));
+    }
+
+    [Fact]
+    public void Religar_depois_de_desligar_no_controle_solta_a_pausa()
+    {
+        var engine = new RuleEngine([]);
+        Assert.True(engine.ObserveReading(Snap(on: true), Snap(on: false), At(14)));
+        Assert.NotNull(engine.PausedUntil(Dev, At(14, 10)));
+
+        Assert.False(engine.ObserveReading(Snap(on: false), Snap(on: true), At(14, 10)));
+
+        Assert.Null(engine.PausedUntil(Dev, At(14, 11)));
+    }
+
+    [Fact]
+    public void Religar_no_controle_logo_apos_o_app_desligar_descarta_o_desligar_pendente()
+    {
+        var engine = new RuleEngine([]);
+        engine.RecordSent(Dev, [new Power(false)], At(14));
+        Assert.False(engine.ObserveReading(Snap(on: true), Snap(on: false), At(14, 0).AddSeconds(30)));
+
+        Assert.False(engine.ObserveReading(Snap(on: false), Snap(on: true), At(14, 1)));
+
+        Assert.True(engine.Expected(Snap(on: true), At(14, 2)).On);
+    }
+
+    [Fact]
+    public void App_reiniciado_logo_apos_ligar_no_controle_nao_pausa_pelo_reajuste_da_ventilacao()
+    {
+        var antigo = new RuleEngine([]);
+        Assert.False(antigo.ObserveReading(Snap(on: false), Snap(on: true, fan: FanSpeed.Low), At(14)));
+        var engine = new RuleEngine([]);
+        engine.LoadPauses(antigo.SavePauses());
+
+        Assert.False(engine.ObserveReading(Snap(on: true, fan: FanSpeed.Low), Snap(on: true, fan: FanSpeed.Auto), At(14, 1)));
+        Assert.Null(engine.PausedUntil(Dev, At(14, 2)));
+    }
+
+    [Fact]
+    public void Religar_nao_solta_a_pausa_de_um_ajuste()
+    {
+        var engine = new RuleEngine([]);
+        engine.ObserveReading(Snap(target: 24), Snap(target: 22), At(14));
+        engine.ObserveReading(Snap(target: 22), Snap(on: false, target: 22), At(14, 2));
+
+        engine.ObserveReading(Snap(on: false, target: 22), Snap(target: 22), At(14, 4));
+
+        Assert.NotNull(engine.PausedUntil(Dev, At(14, 30)));
+    }
+
+    [Fact]
+    public void Ajuste_de_alvo_logo_depois_de_ligar_no_controle_pausa()
+    {
+        var engine = new RuleEngine([]);
+        engine.ObserveReading(Snap(on: false, target: 23), Snap(target: 23), At(14));
+
+        Assert.True(engine.ObserveReading(Snap(target: 23), Snap(target: 18), At(14, 2)));
+    }
+
+    [Fact]
+    public void Troca_de_modo_logo_depois_de_ligar_no_controle_pausa()
+    {
+        var engine = new RuleEngine([]);
+        engine.ObserveReading(Snap(on: false), Snap(), At(14));
+
+        Assert.True(engine.ObserveReading(Snap(), Snap(mode: AcMode.Heat), At(14, 2)));
+    }
+
+    [Fact]
+    public void Religar_nao_solta_o_ajuste_feito_pela_tela_depois_de_desligar()
+    {
+        var engine = new RuleEngine([]);
+        engine.ObserveReading(Snap(), Snap(on: false), At(14));
+        engine.ManualChange(Dev, At(14, 5));
+
+        engine.ObserveReading(Snap(on: false), Snap(), At(14, 10));
+
+        Assert.NotNull(engine.PausedUntil(Dev, At(14, 30)));
+    }
+
+    [Fact]
+    public void Religar_nao_solta_a_pausa_pedida_na_tela()
+    {
+        var engine = new RuleEngine([]);
+        engine.ObserveReading(Snap(), Snap(on: false), At(14));
+        engine.Pause(Dev, At(17));
+
+        engine.ObserveReading(Snap(on: false), Snap(), At(14, 10));
+
+        Assert.NotNull(engine.PausedUntil(Dev, At(16)));
+    }
+
+    [Fact]
+    public void Motor_recriado_ainda_solta_a_pausa_do_desligar_ao_religar()
+    {
+        var antigo = new RuleEngine([]);
+        antigo.ObserveReading(Snap(), Snap(on: false), At(14));
+        var novo = new RuleEngine([]);
+        novo.CopyRuntimeFrom(antigo);
+
+        novo.ObserveReading(Snap(on: false), Snap(), At(14, 10));
+
+        Assert.Null(novo.PausedUntil(Dev, At(14, 11)));
+    }
+
+    [Fact]
+    public void App_reiniciado_ainda_solta_a_pausa_do_desligar_ao_religar()
+    {
+        var antes = new RuleEngine([]);
+        antes.ObserveReading(Snap(), Snap(on: false), At(14));
+        var depois = new RuleEngine([]);
+        depois.LoadPauses(antes.SavePauses());
+        Assert.NotNull(depois.PausedUntil(Dev, At(14, 5)));
+
+        depois.ObserveReading(Snap(on: false), Snap(), At(14, 10));
+
+        Assert.Null(depois.PausedUntil(Dev, At(14, 11)));
+    }
+
+    [Fact]
+    public void Pausas_gravadas_pela_versao_anterior_ainda_carregam()
+    {
+        var engine = new RuleEngine([]);
+
+        engine.LoadPauses($$"""{"{{Dev}}":"{{At(15):O}}"}""");
+
+        Assert.NotNull(engine.PausedUntil(Dev, At(14, 59)));
+    }
+
+    [Fact]
+    public void Reajuste_do_aparelho_depois_de_ligar_no_controle_nao_pausa()
+    {
+        var engine = new RuleEngine([]);
+        engine.ObserveReading(Snap(on: false, fan: FanSpeed.Low), Snap(fan: FanSpeed.Low), At(14));
+
+        Assert.False(engine.ObserveReading(Snap(fan: FanSpeed.Low), Snap(fan: FanSpeed.Auto), At(14, 1)));
+        Assert.Null(engine.PausedUntil(Dev, At(14, 2)));
     }
 
     [Fact]

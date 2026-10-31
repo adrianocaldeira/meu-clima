@@ -6,6 +6,15 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+### Alterado
+- Ligar o ar pelo controle, sem mudar modo nem temperatura, não pausa mais as regras: elas assumem na hora.
+  Se o ar tinha sido desligado pelo controle, religar também solta a pausa desse desligar. Mudar
+  temperatura, modo ou ventilação pelo controle continua pausando as regras por 1 hora.
+
+### Compatibilidade
+- As pausas passam a ser gravadas num formato novo. Uma versão anterior não lê esse formato: se você
+  voltar de versão, as pausas em andamento se perdem uma vez.
+
 ## [0.4.0] — 2026
 
 ### Adicionado

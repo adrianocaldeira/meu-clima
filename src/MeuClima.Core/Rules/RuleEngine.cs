@@ -45,6 +45,10 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
     private readonly List<IRule> _rules = [.. rules.OrderByDescending(r => r.Priority)];
     private readonly Dictionary<string, DateTimeOffset> _pausedUntil = [];
     private readonly Dictionary<string, DateTimeOffset> _lastSent = [];
+    /// <summary>Fim da pausa criada só por desligar no controle; religar solta se a pausa ainda for essa.</summary>
+    private readonly Dictionary<string, DateTimeOffset> _pausaDoDesligar = [];
+    /// <summary>Quando o aparelho foi ligado no controle sem ajuste; a ventilação que ele reajusta depois não pausa.</summary>
+    private readonly Dictionary<string, DateTimeOffset> _ligouNoControle = [];
     private readonly Dictionary<string, (DateTimeOffset At, List<DeviceCommand> Cmds)> _pending = [];
     private readonly HashSet<string> _failingRules = [];
 
@@ -58,17 +62,25 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
     public void Resume(string deviceId) => _pausedUntil.Remove(deviceId);
 
     /// <summary>Pausas manuais em JSON, para sobreviver a reinício do app (atualização, PC desligado).</summary>
-    public string SavePauses() => System.Text.Json.JsonSerializer.Serialize(_pausedUntil);
+    public string SavePauses() => System.Text.Json.JsonSerializer.Serialize(new PausasSalvas(_pausedUntil, _pausaDoDesligar, _ligouNoControle));
 
     public void LoadPauses(string json)
     {
         try
         {
-            foreach (var (id, ate) in System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, DateTimeOffset>>(json) ?? [])
-                _pausedUntil[id] = ate;
+            // Versões até a 0.4.0 gravavam só o dicionário de pausas.
+            var salvas = json.Contains("\"pausas\"")
+                ? System.Text.Json.JsonSerializer.Deserialize<PausasSalvas>(json)
+                : new PausasSalvas(System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, DateTimeOffset>>(json) ?? [], [], []);
+            foreach (var (id, ate) in salvas?.pausas ?? []) _pausedUntil[id] = ate;
+            foreach (var (id, ate) in salvas?.doDesligar ?? []) _pausaDoDesligar[id] = ate;
+            foreach (var (id, em) in salvas?.ligouNoControle ?? []) _ligouNoControle[id] = em;
         }
         catch (System.Text.Json.JsonException) { }
     }
+
+    private sealed record PausasSalvas(Dictionary<string, DateTimeOffset> pausas, Dictionary<string, DateTimeOffset>? doDesligar,
+        Dictionary<string, DateTimeOffset>? ligouNoControle);
 
     /// <summary>Ajuste do usuário: pausa as automações do aparelho e avisa as regras (ex.: cancela a "Janela aberta").</summary>
     public void ManualChange(string deviceId, DateTimeOffset now)
@@ -83,6 +95,8 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
         ConfirmationWindow = other.ConfirmationWindow;
         MaxObservationGap = other.MaxObservationGap;
         foreach (var (k, v) in other._pausedUntil) _pausedUntil[k] = v;
+        foreach (var (k, v) in other._pausaDoDesligar) _pausaDoDesligar[k] = v;
+        foreach (var (k, v) in other._ligouNoControle) _ligouNoControle[k] = v;
         foreach (var (k, v) in other._lastSent) _lastSent[k] = v;
         foreach (var (k, v) in other._pending) _pending[k] = (v.At, [.. v.Cmds]);
         _failingRules.UnionWith(other._failingRules);
@@ -118,10 +132,29 @@ public sealed class RuleEngine(IEnumerable<IRule> rules)
         if (_lastSent.TryGetValue(current.Id, out var t) && now - t <= ConfirmationWindow
             && _pending.TryGetValue(current.Id, out var p) && !Contradicts(previous, current, p.Cmds))
             return false;
+        if (!previous.On && current.On && previous.Mode == current.Mode && previous.TargetC == current.TargetC)
+            return LigouNoControle(current.Id, now);
+        if (_ligouNoControle.TryGetValue(current.Id, out var ligou) && now - ligou <= ConfirmationWindow
+            && previous.On == current.On && previous.Mode == current.Mode && previous.TargetC == current.TargetC)
+            return false;
+        var soDesligou = previous.On && !current.On && PausedUntil(current.Id, now) is null;
         ManualChange(current.Id, now);
+        if (soDesligou) _pausaDoDesligar[current.Id] = _pausedUntil[current.Id];
         // Sem isso, Expected reaplicaria o pedido do app por cima do ajuste do usuário até a janela fechar.
         _pending.Remove(current.Id);
         return true;
+    }
+
+    /// <summary>Ligar sem mudar modo nem alvo: as regras assumem na hora, sem a pausa de ajuste manual.</summary>
+    private bool LigouNoControle(string deviceId, DateTimeOffset now)
+    {
+        foreach (var r in _rules) r.OnManualChange(deviceId);
+        // Ajuste ou pausa pedida depois do desligar trocam o fim da pausa: aí ela fica.
+        if (_pausaDoDesligar.Remove(deviceId, out var ate) && _pausedUntil.TryGetValue(deviceId, out var atual) && atual == ate)
+            Resume(deviceId);
+        _ligouNoControle[deviceId] = now;
+        _pending.Remove(deviceId);
+        return false;
     }
 
     /// <summary>Mudança que diverge do que foi pedido (ex.: pedi 22 °C, apareceu 26 °C) é do usuário.</summary>

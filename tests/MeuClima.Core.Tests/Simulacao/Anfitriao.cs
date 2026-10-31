@@ -20,6 +20,7 @@ internal sealed class Anfitriao
     private readonly Dictionary<(string, string), DateTimeOffset> _esperaRecusa = [];
     private readonly List<DeviceSnapshot> _sessao = [];
     private DateTimeOffset? _pausaAte;
+    private DateTimeOffset? _turboDecididoEm;
     private readonly HashSet<DateTimeOffset> _confortoPreso = [];
 
     public Anfitriao(IReadOnlyList<RuleConfig> configs, Func<RuleConfig, IRule>? criar = null)
@@ -83,6 +84,9 @@ internal sealed class Anfitriao
         {
             if (Leituras.TryGetValue(atual.Id, out var anterior) && Motor.ObserveReading(anterior, atual, now))
                 _pausaAte = now + RuleEngine.ManualPause;
+            // Religar no controle solta a pausa que veio só de desligar.
+            else if (_pausaAte > now && anterior is { On: false } && atual.On && Motor.PausedUntil(atual.Id, now) is null)
+                _pausaAte = null;
             Leituras[atual.Id] = atual;
             _sessao.Add(atual);
             if (_pausaAte > now || _esperaRecusa.GetValueOrDefault((atual.Id, "Conforto")) > now) _confortoPreso.Add(atual.ReadAt);
@@ -117,6 +121,11 @@ internal sealed class Anfitriao
     private void Checar(DateTimeOffset now, EngineResult r)
     {
         void Falha(string msg) => Violacoes.Add($"{now:dd/MM HH:mm} {msg}");
+        var planejaTurbo = r.Commands.Any(p => p.Commands.Contains(new SetFan(FanSpeed.Turbo)));
+        if (!planejaTurbo) _turboDecididoEm = null;
+        else _turboDecididoEm ??= now;
+        // Cobre a espera de 10 min depois de recusa e o reenvio; turbo replanejado além disso é decisão nova.
+        var jaPlanejava = _turboDecididoEm < now && now - _turboDecididoEm <= TimeSpan.FromMinutes(12);
         var leitura = Leituras[Dev];
         var cfg = Conforto;
         if (RegraConforto?.State.Fase is ConfortoFase.Manter or ConfortoFase.Turbo && leitura.On && AbaixoDaMinimaHa(cfg) > TimeSpan.FromMinutes(12))
@@ -139,7 +148,8 @@ internal sealed class Anfitriao
                 else if (!Sustentado(a => a > cfg.MaxC))
                     Falha($"Conforto ligou sem calor sustentado (dentro {leitura.AmbientC}, máxima {cfg.MaxC}; {Trilha()})");
             }
-            if (p.Commands.Contains(new SetFan(FanSpeed.Turbo)) && leitura.Fan != FanSpeed.Turbo && !Sustentado(a => a >= cfg.TurboFromC))
+            // Só na decisão: o reenvio depois de recusa repete o turbo já decidido, com a leitura que oscilou 1 °C.
+            if (p.Commands.Contains(new SetFan(FanSpeed.Turbo)) && leitura.Fan != FanSpeed.Turbo && !jaPlanejava && !Sustentado(a => a >= cfg.TurboFromC))
                 Falha($"turbo sem calor forte sustentado (dentro {leitura.AmbientC}; {Trilha()})");
             if (p.RuleName == "Conforto" && CompressorTroca(p.Commands, leitura) is { } liga && UltimaTrocaDoCompressor(liga) is { } ha && ha < ConfortoRule.CicloMinimo)
                 Falha($"Conforto {(liga ? "ligou" : "desligou")} o compressor {ha.TotalMinutes:0.#} min depois da última troca");
