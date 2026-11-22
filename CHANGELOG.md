@@ -6,6 +6,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+## [0.4.2] — 2026
+
 ### Alterado
 - "Conforto": com a sala 2 °C ou mais acima da máxima, o ar esfria sem o modo econômico e chega mais rápido
   ao alvo. O econômico volta quando a sala chega à máxima. Antes, num dia quente, o ar ficava horas no
@@ -244,7 +246,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
   portable abre a página da release.
 - Instalador (Inno Setup), sem exigir administrador.
 
-[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.4.1...HEAD
+[Não lançado]: https://github.com/adrianocaldeira/meu-clima/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.4.2
 [0.4.1]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.4.1
 [0.4.0]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.4.0
 [0.3.3]: https://github.com/adrianocaldeira/meu-clima/releases/tag/v0.3.3
