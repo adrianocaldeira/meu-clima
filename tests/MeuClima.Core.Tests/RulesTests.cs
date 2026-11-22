@@ -91,6 +91,62 @@ public class ConfortoTests
     }
 
     [Fact]
+    public void Entra_sem_economico_a_2_graus_acima_da_maxima_e_volta_a_entrar_depois_de_sair()
+    {
+        var r = Rule(new ConfortoConfig(Dev) { TurboFromC = 30 });
+        var o = r.Evaluate(Ctx(At(14), 30, Snap(ambient: 25)));
+        Assert.Contains(new SetEnergySaving(true), o.Claims[Dev]);
+
+        o = r.Evaluate(Ctx(At(14, 5), 30, Snap(ambient: 26)));
+        Assert.Contains(new SetEnergySaving(false), o.Claims[Dev]);
+
+        r.Evaluate(Ctx(At(14, 10), 30, Snap(ambient: 24, eco: false)));
+        r.Evaluate(Ctx(At(14, 15), 30, Snap(ambient: 25)));
+        o = r.Evaluate(Ctx(At(14, 20), 30, Snap(ambient: 26)));
+        Assert.Contains(new SetEnergySaving(false), o.Claims[Dev]);
+    }
+
+    [Theory]
+    [InlineData("ajuste manual")]
+    [InlineData("lacuna")]
+    public void Recomecar_com_o_aparelho_sem_economico_e_acima_da_maxima_nao_religa_o_economico(string como)
+    {
+        var r = Rule(new ConfortoConfig(Dev) { TurboFromC = 30 });
+        r.Evaluate(Ctx(At(14), 30, Snap(ambient: 27)));
+        r.Evaluate(Ctx(At(14, 5), 30, Snap(ambient: 26, eco: false)));
+        var depois = At(14, 10);
+        if (como == "ajuste manual") r.OnManualChange(Dev);
+        else depois = At(14, 30);
+
+        var o = r.Evaluate(Ctx(depois, 30, Snap(ambient: 25, eco: false)));
+
+        Assert.Contains(new SetEnergySaving(false), o.Claims[Dev]);
+    }
+
+    [Fact]
+    public void Sensor_travado_mantem_o_economico_mesmo_longe_do_alvo()
+    {
+        var r = Rule(new ConfortoConfig(Dev) { TurboFromC = 30 });
+        r.Evaluate(Ctx(At(14), 30, Snap(ambient: 27)));
+        r.State.SensorParadoEm = 27;
+
+        var o = r.Evaluate(Ctx(At(14, 5), 30, Snap(ambient: 27)));
+
+        Assert.Contains(new SetEnergySaving(true), o.Claims[Dev]);
+    }
+
+    [Fact]
+    public void Aviso_de_antecipacao_longe_do_alvo_nao_fala_em_economico()
+    {
+        var r = Rule(new ConfortoConfig(Dev) { TurboFromC = 30 });
+
+        var o = r.Evaluate(Ctx(At(14), 30, Snap(on: false, ambient: 26), weather: Clima(30, (At(14, 20), 33))));
+
+        Assert.Contains(new SetEnergySaving(false), o.Claims[Dev]);
+        Assert.DoesNotContain("econômico em", Assert.Single(o.Notifications).Body);
+    }
+
+    [Fact]
     public void Leitura_isolada_acima_da_maxima_nao_liga()
     {
         var r = Rule();

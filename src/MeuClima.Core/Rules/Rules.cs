@@ -212,8 +212,11 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
             Reiniciar();
         }
         // O ciclo roda a cada poucos segundos com a mesma leitura: só leitura nova conta como "do outro lado".
+        var recomecou = State.UltimaAmb is null;
         if (State.UltimaLeitura != dev.ReadAt) Acompanhar(dev.ReadAt, amb);
         State.UltimaLeitura = dev.ReadAt;
+        // Estado recomeçado no meio da descida: o aparelho já sem o econômico diz de onde vinha, e religá-lo apitaria à toa.
+        if (recomecou && amb > Cfg.MaxC && dev.On && dev.Mode == AcMode.Cool && dev.EnergySaving == false) State.LongeDoAlvo = true;
 
         var antes = State.Fase;
         var antecipou = false;
@@ -241,11 +244,12 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
             else if (State.Fase == ConfortoFase.Manter && !dev.On && !State.AvisouLigar)
             {
                 State.AvisouLigar = true;
+                var frio = SemEconomico ? $"Frio sem o modo econômico até {Cfg.MaxC} °C." : $"Frio econômico em {Cfg.MaxC} °C.";
                 o.Notify("Conforto ligou o ar", antecipou || (State.AntecipouEm == DateOnly.FromDateTime(ctx.LocalNow) && amb <= Cfg.MaxC)
-                    ? $"{dev.Name}: o calor forte chega em até {Cfg.PreCoolLeadMin} min. Frio econômico em {Cfg.MaxC} °C."
-                    : State.LongeDoAlvo
-                    ? $"{dev.Name}: dentro em {amb} °C, longe de {Cfg.MaxC} °C. Frio sem o modo econômico até {Cfg.MaxC} °C."
-                    : $"{dev.Name}: dentro em {amb} °C, acima de {Cfg.MaxC} °C. Frio econômico em {Cfg.MaxC} °C.", Cfg.DeviceId);
+                    ? $"{dev.Name}: o calor forte chega em até {Cfg.PreCoolLeadMin} min. {frio}"
+                    : SemEconomico
+                    ? $"{dev.Name}: dentro em {amb} °C, longe de {Cfg.MaxC} °C. {frio}"
+                    : $"{dev.Name}: dentro em {amb} °C, acima de {Cfg.MaxC} °C. {frio}", Cfg.DeviceId);
             }
         }
         if (!liga) AvisarForaMaisFresco(o, ctx, dev, amb);
@@ -342,6 +346,9 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
         }
         return fase;
     }
+
+    /// <summary>Longe da máxima, sem o econômico; com o sensor travado a leitura não chega à máxima, então mantém.</summary>
+    private bool SemEconomico => State.LongeDoAlvo && State.SensorParadoEm is null;
 
     private TimeSpan EsperaAcima(int amb) =>
         amb >= Cfg.MaxC + 2 && !(State.SaltoEm is { } s && State.Acima.Desde is { } d && s >= d) ? ConfirmacaoForte : Confirmacao;
@@ -481,11 +488,11 @@ public sealed class ConfortoRule(ConfortoConfig cfg) : Rule<ConfortoConfig, Conf
                 break;
             case ConfortoFase.Manter:
                 o.Claim(Cfg.DeviceId, new Power(true), new SetMode(AcMode.Cool), new SetFan(FanSpeed.Auto),
-                    new SetEnergySaving(!State.LongeDoAlvo), new SetTarget(Cfg.MaxC));
+                    new SetEnergySaving(!SemEconomico), new SetTarget(Cfg.MaxC));
                 var piso = Cfg.FanAtMin ? "só ventila" : "desliga";
                 o.Status = new RuleStatus(Name, State.SensorParadoEm is { } travado
-                    ? $"O sensor do aparelho marca {travado} °C mesmo após {Cfg.MaxTurboMin} min de turbo; pode estar medindo perto do teto. {(State.LongeDoAlvo ? "Esfriando sem o modo econômico" : "Mantendo o modo econômico")} em {Cfg.MaxC} °C, sem novo turbo."
-                    : State.LongeDoAlvo
+                    ? $"O sensor do aparelho marca {travado} °C mesmo após {Cfg.MaxTurboMin} min de turbo; pode estar medindo perto do teto. Mantendo o modo econômico em {Cfg.MaxC} °C, sem novo turbo."
+                    : SemEconomico
                     ? $"{dentro}, longe de {Cfg.MaxC} °C. Esfriando sem o modo econômico; ele volta ao chegar a {Cfg.MaxC} °C."
                     : amb > Cfg.MaxC
                     ? $"{dentro}, acima de {Cfg.MaxC} °C. Esfriando no modo econômico até {Cfg.MaxC} °C."
