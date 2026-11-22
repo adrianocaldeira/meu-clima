@@ -6,6 +6,11 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não lançado]
 
+### Alterado
+- "Conforto": com a sala 2 °C ou mais acima da máxima, o ar esfria sem o modo econômico e chega mais rápido
+  ao alvo. O econômico volta quando a sala chega à máxima. Antes, num dia quente, o ar ficava horas no
+  econômico sem chegar a 24 °C.
+
 ## [0.4.1] — 2026
 
 ### Alterado

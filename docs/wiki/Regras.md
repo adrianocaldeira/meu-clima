@@ -68,7 +68,8 @@ opcional; sem ela, vale para qualquer dia e hora. "Só com alguém no PC" pode s
 
 **O que faz:**
 - **Acima da máxima** por 5 min (por 2 min se estiver 2 °C ou mais acima): liga (ou passa) para Frio, ventilação Auto, **modo econômico**,
-  alvo 24 °C.
+  alvo 24 °C. Com dentro 2 °C ou mais acima da máxima, esfria **sem o modo econômico**, que só volta ao
+  chegar à máxima: num dia quente, o econômico sozinho não dá conta.
 - **Calor forte** — dentro **≥ 26 °C** por 2 min: Frio com ventilação **Turbo** até voltar a 24 °C,
   por no máximo **30 min a cada 2 h**, somando todos os turbos (sair e voltar ao PC não zera a conta).
   Um turbo novo só começa com pelo menos 10 min de saldo; até lá, Frio econômico. Esgotado o tempo,

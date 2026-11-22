@@ -70,6 +70,27 @@ public class ConfortoTests
     }
 
     [Fact]
+    public void Longe_do_alvo_esfria_sem_economico_e_so_liga_o_economico_ao_chegar_na_maxima()
+    {
+        var r = Rule(new ConfortoConfig(Dev) { TurboFromC = 30 });
+        r.Evaluate(Ctx(At(14), 30, Snap(on: false, ambient: 27)));
+
+        var o = r.Evaluate(Ctx(At(14, 2), 30, Snap(on: false, ambient: 27)));
+        Assert.Contains(new SetEnergySaving(false), o.Claims[Dev]);
+
+        foreach (var (min, amb) in new[] { (10, 26), (20, 25), (30, 25) })
+        {
+            o = r.Evaluate(Ctx(At(14, min), 30, Snap(ambient: amb)));
+            Assert.Contains(new SetEnergySaving(false), o.Claims[Dev]);
+        }
+
+        o = r.Evaluate(Ctx(At(14, 35), 30, Snap(ambient: 24)));
+        Assert.Equal(Manter, o.Claims[Dev]);
+        o = r.Evaluate(Ctx(At(14, 40), 30, Snap(ambient: 25)));
+        Assert.Contains(new SetEnergySaving(true), o.Claims[Dev]);
+    }
+
+    [Fact]
     public void Leitura_isolada_acima_da_maxima_nao_liga()
     {
         var r = Rule();
